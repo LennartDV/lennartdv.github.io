@@ -931,6 +931,7 @@
         let localTeam = TEAMS.PLAYER; // 0 for White/Host, 1 for Black/Client
         let mpReady = false;
         let opponentReady = false;
+        let mpSyncInterval = null; // NEW: To clear interval on game end
         
         // Camera Controls
         let cameraAngle = Math.PI;
@@ -1113,11 +1114,11 @@
             document.getElementById('start-menu').style.display = 'none';
             document.getElementById('mode-menu').style.display = 'flex';
             
-            // Check for save (This logic needs update for multi-slot)
-            // For multi-slot, we don't show "Continue" here, we show Campaign -> Slot Menu
-            // But user requested "Continue" flow.
-            // Let's hide generic continue and use the slot system.
-            document.getElementById('btn-continue').style.display = 'none';
+            if (localStorage.getItem('rts_campaign_level')) {
+                document.getElementById('btn-continue').style.display = 'block';
+            } else {
+                document.getElementById('btn-continue').style.display = 'none';
+            }
         }
         
         function backToMain() {
@@ -1134,8 +1135,12 @@
             document.getElementById('mp-lobby').style.display = 'none';
             document.getElementById('mode-menu').style.display = 'flex';
             
-            if(peer) peer.destroy();
-            peer = null;
+            if(peer) {
+                peer.destroy();
+                peer = null;
+            }
+            conn = null;
+            if (mpSyncInterval) clearInterval(mpSyncInterval);
         }
         
         function backToSlots() {
@@ -1147,6 +1152,7 @@
         function startSkirmish() {
             soundMgr.sfxClick();
             gameMode = 'SKIRMISH';
+            localTeam = TEAMS.PLAYER;
             enterSetup();
         }
         
@@ -1177,15 +1183,14 @@
             const data = localStorage.getItem(`rts_save_${slot}`);
             
             if (data) {
-                // Load Game
                 const save = JSON.parse(data);
                 gameMode = 'CAMPAIGN';
                 campaignLevel = save.level;
                 campaignDiffKey = save.diff;
                 currentDifficulty = DIFFICULTIES[save.diff];
+                localTeam = TEAMS.PLAYER;
                 showCityIntro();
             } else {
-                // New Game -> Go to difficulty
                 document.getElementById('save-slots-menu').style.display = 'none';
                 document.getElementById('campaign-diff-menu').style.display = 'flex';
             }
@@ -1208,10 +1213,9 @@
             campaignDiffKey = diffKey;
             currentDifficulty = DIFFICULTIES[diffKey];
             campaignLevel = 0; 
+            localTeam = TEAMS.PLAYER;
             
-            // Initial Save
             saveProgress();
-            
             showCityIntro();
         }
         
@@ -1235,16 +1239,12 @@
             document.getElementById('city-name-display').innerText = CAMPAIGN_CITIES[campaignLevel];
             document.getElementById('city-level-display').innerText = `LEVEL ${campaignLevel + 1}/10`;
             
-            // Reset logic
+            // Reset
             units = [];
             selectedUnits.clear();
             projectiles = [];
             particles = [];
-            
-            // Clear HP bars from DOM (Fixes floating bars bug)
             document.getElementById('overlay-container').innerHTML = '';
-
-            // Clear scene units safely
             for (let i = scene.children.length - 1; i >= 0; i--) {
                 const obj = scene.children[i];
                 if (obj.userData.isUnit || obj.userData.isParticle || obj.userData.isProjectile) {
@@ -1267,11 +1267,201 @@
             saveProgress();
             
             if (campaignLevel >= 10) {
-                // Campaign Finished - Clear slot
                 localStorage.removeItem(`rts_save_${currentSaveSlot}`);
                 location.reload(); 
             } else {
                 showCityIntro();
+            }
+        }
+
+        // --- MULTIPLAYER ---
+        function showMultiplayerMenu() {
+            soundMgr.sfxClick();
+            document.getElementById('mode-menu').style.display = 'none';
+            document.getElementById('mp-menu').style.display = 'flex';
+        }
+        
+        function mpHostGame() {
+            soundMgr.sfxClick();
+            isHost = true;
+            localTeam = TEAMS.PLAYER; // Host is White (0)
+            gameMode = 'MULTIPLAYER';
+            
+            document.getElementById('mp-menu').style.display = 'none';
+            document.getElementById('mp-lobby').style.display = 'flex';
+            document.getElementById('mp-host-ui').style.display = 'block';
+            document.getElementById('mp-join-ui').style.display = 'none';
+            document.getElementById('mp-lobby-title').innerText = "HOSTING...";
+            
+            peer = new Peer();
+            peer.on('open', (id) => {
+                document.getElementById('host-id-display').value = id;
+            });
+            
+            peer.on('connection', (c) => {
+                conn = c;
+                setupConnection();
+            });
+        }
+        
+        function mpJoinGameScreen() {
+            soundMgr.sfxClick();
+            isHost = false;
+            localTeam = TEAMS.ENEMY; // Client is Black (1)
+            gameMode = 'MULTIPLAYER';
+            
+            document.getElementById('mp-menu').style.display = 'none';
+            document.getElementById('mp-lobby').style.display = 'flex';
+            document.getElementById('mp-host-ui').style.display = 'none';
+            document.getElementById('mp-join-ui').style.display = 'block';
+            document.getElementById('mp-lobby-title').innerText = "JOINING...";
+        }
+        
+        function mpConnectToHost() {
+            const hostId = document.getElementById('join-id-input').value;
+            if(!hostId) return;
+            
+            peer = new Peer();
+            peer.on('open', (id) => {
+                conn = peer.connect(hostId);
+                setupConnection();
+            });
+        }
+        
+        function setupConnection() {
+            conn.on('open', () => {
+                document.getElementById('mp-lobby').style.display = 'none';
+                
+                if (isHost) {
+                    const seed = Math.random() * 10000;
+                    rng = new SeededRandom(seed);
+                    conn.send({ type: 'INIT', seed: seed });
+                    enterSetup();
+                    // Host Loop to Sync State
+                    mpSyncInterval = setInterval(() => {
+                        if (gameState === STATES.PLAYING) {
+                            const state = units.map(u => ({
+                                id: u.id,
+                                pos: u.mesh.position,
+                                hp: u.currentHp,
+                                state: u.state,
+                                targetId: u.target ? u.target.id : null
+                            }));
+                            conn.send({ type: 'SYNC_STATE', units: state });
+                        }
+                    }, 50); // 20 times per sec
+                }
+            });
+            
+            conn.on('data', (data) => {
+                handleMpData(data);
+            });
+        }
+        
+        function handleMpData(data) {
+            if (data.type === 'INIT') {
+                rng = new SeededRandom(data.seed);
+                enterSetup();
+            }
+            else if (data.type === 'PLACE') {
+                if (isHost) {
+                    const u = new Unit(data.uType, data.gx, data.gz, data.team);
+                    units.push(u);
+                    soundMgr.sfxPlace();
+                    // Send back to client as confirmation implicitly via next Sync? 
+                    // Or just echo placement to ensure ID matches?
+                    // With Host-Auth, the client shouldn't create unit until Host says so, 
+                    // but for responsiveness we usually predict.
+                    // For this simple implementation, we just let host create it.
+                    // The sync loop will pick it up.
+                    // WAIT: Client needs to see it immediately in setup.
+                    // Host should broadcast 'UNIT_CREATED' back.
+                    conn.send({ type: 'UNIT_CREATED', uType: data.uType, gx: data.gx, gz: data.gz, team: data.team, id: u.id });
+                }
+            }
+            else if (data.type === 'UNIT_CREATED') {
+                if (!isHost) {
+                    const u = new Unit(data.uType, data.gx, data.gz, data.team, data.id);
+                    units.push(u);
+                    soundMgr.sfxPlace();
+                }
+            }
+            else if (data.type === 'DELETE') {
+                if (isHost) {
+                    const u = units.find(u => u.gx === data.gx && u.gz === data.gz);
+                    if (u) {
+                        soundMgr.sfxDelete();
+                        u.die();
+                        conn.send({ type: 'UNIT_DELETED', id: u.id });
+                    }
+                }
+            }
+            else if (data.type === 'UNIT_DELETED') {
+                if (!isHost) {
+                    const u = units.find(u => u.id === data.id);
+                    if(u) {
+                        soundMgr.sfxDelete();
+                        u.die();
+                    }
+                }
+            }
+            else if (data.type === 'READY') {
+                opponentReady = true;
+                checkMpStart();
+            }
+            else if (data.type === 'CMD_MOVE') {
+                if (isHost) {
+                    // Host receives move request from client
+                    const center = new THREE.Vector3(data.tx, 0, data.tz);
+                    const remoteSelected = new Set();
+                    // Map client IDs to host units
+                    data.ids.forEach(id => remoteSelected.add(id));
+                    
+                    // We need to temporarily trick issueMoveCommand or refactor it.
+                    // I refactored it to accept a set!
+                    issueMoveCommand(center, remoteSelected);
+                }
+            }
+            else if (data.type === 'CMD_ATTACK') {
+                if (isHost) {
+                    const target = units.find(u => u.gx === data.targetGx && u.gz === data.targetGz);
+                    if(target) {
+                       data.ids.forEach(id => {
+                           const u = units.find(unit => unit.id === id);
+                           if(u) {
+                               u.target = target;
+                               u.state = 'ATTACKING';
+                               u.isManual = true;
+                           }
+                       });
+                    }
+                }
+            }
+            else if (data.type === 'SYNC_STATE') {
+                if (!isHost) {
+                    // Client updates state from host
+                    data.units.forEach(syncUnit => {
+                        let localUnit = units.find(u => u.id === syncUnit.id);
+                        if (localUnit) {
+                            // Interpolate position
+                            localUnit.mesh.position.lerp(new THREE.Vector3(syncUnit.pos.x, syncUnit.pos.y, syncUnit.pos.z), 0.5);
+                            localUnit.currentHp = syncUnit.hp;
+                            localUnit.state = syncUnit.state;
+                            if (syncUnit.hp <= 0) localUnit.die();
+                        }
+                    });
+                }
+            }
+        }
+        
+        function checkMpStart() {
+            if (mpReady && opponentReady) {
+                gameState = STATES.PLAYING;
+                document.getElementById('state-display').innerText = "FIGHT";
+                document.getElementById('build-menu').style.display = 'none';
+                document.getElementById('timer-display').innerText = "---";
+                document.getElementById('start-btn').style.display = 'none';
+                soundMgr.playMusic('battle');
             }
         }
         
@@ -1280,6 +1470,11 @@
             soundMgr.playMusic('menu');
             
             gameState = STATES.MENU;
+            
+            // Clean MP
+            if(peer) { peer.destroy(); peer = null; }
+            conn = null;
+            if(mpSyncInterval) clearInterval(mpSyncInterval);
             
             // Hide Game UI
             document.getElementById('game-ui').style.display = 'none';
@@ -1341,6 +1536,19 @@
                 currentDifficulty = DIFFICULTIES.NORMAL;
             }
             
+            // MP UI Adjustments
+            const startBtn = document.getElementById('start-btn');
+            if(gameMode === 'MULTIPLAYER') {
+                diffSelect.style.display = 'none';
+                document.getElementById('mp-status').style.display = 'block';
+                startBtn.innerText = "READY";
+                mpReady = false;
+                opponentReady = false;
+            } else {
+                document.getElementById('mp-status').style.display = 'none';
+                startBtn.innerText = "START BATTLE";
+            }
+
             // CRITICAL FIX: Ensure money is reset and displayed
             playerMoney = 40;
             document.getElementById('money-display').innerText = playerMoney;
@@ -1590,132 +1798,8 @@
             }
         }
 
-        // --- MULTIPLAYER ---
-        function showMultiplayerMenu() {
-            soundMgr.sfxClick();
-            document.getElementById('mode-menu').style.display = 'none';
-            document.getElementById('mp-menu').style.display = 'flex';
-        }
-        
-        function mpHostGame() {
-            soundMgr.sfxClick();
-            isHost = true;
-            localTeam = TEAMS.PLAYER; // Host is White (0)
-            gameMode = 'MULTIPLAYER';
-            
-            document.getElementById('mp-menu').style.display = 'none';
-            document.getElementById('mp-lobby').style.display = 'flex';
-            document.getElementById('mp-host-ui').style.display = 'block';
-            document.getElementById('mp-join-ui').style.display = 'none';
-            document.getElementById('mp-lobby-title').innerText = "HOSTING...";
-            
-            peer = new Peer();
-            peer.on('open', (id) => {
-                document.getElementById('host-id-display').value = id;
-            });
-            
-            peer.on('connection', (c) => {
-                conn = c;
-                setupConnection();
-            });
-        }
-        
-        function mpJoinGameScreen() {
-            soundMgr.sfxClick();
-            isHost = false;
-            localTeam = TEAMS.ENEMY; // Client is Black (1)
-            gameMode = 'MULTIPLAYER';
-            
-            document.getElementById('mp-menu').style.display = 'none';
-            document.getElementById('mp-lobby').style.display = 'flex';
-            document.getElementById('mp-host-ui').style.display = 'none';
-            document.getElementById('mp-join-ui').style.display = 'block';
-            document.getElementById('mp-lobby-title').innerText = "JOINING...";
-        }
-        
-        function mpConnectToHost() {
-            const hostId = document.getElementById('join-id-input').value;
-            if(!hostId) return;
-            
-            peer = new Peer();
-            peer.on('open', (id) => {
-                conn = peer.connect(hostId);
-                setupConnection();
-            });
-        }
-        
-        function setupConnection() {
-            conn.on('open', () => {
-                document.getElementById('mp-lobby').style.display = 'none';
-                
-                // Send seed from host
-                if (isHost) {
-                    const seed = Math.random() * 10000;
-                    rng = new SeededRandom(seed);
-                    conn.send({ type: 'INIT', seed: seed });
-                    enterSetup();
-                }
-            });
-            
-            conn.on('data', (data) => {
-                handleMpData(data);
-            });
-        }
-        
-        function handleMpData(data) {
-            if (data.type === 'INIT') {
-                rng = new SeededRandom(data.seed);
-                enterSetup();
-            }
-            else if (data.type === 'PLACE') {
-                const u = new Unit(data.uType, data.gx, data.gz, data.team);
-                units.push(u);
-                soundMgr.sfxPlace();
-            }
-            else if (data.type === 'DELETE') {
-                const u = units.find(u => u.gx === data.gx && u.gz === data.gz);
-                if (u) {
-                    soundMgr.sfxDelete();
-                    u.die();
-                }
-            }
-            else if (data.type === 'READY') {
-                opponentReady = true;
-                checkMpStart();
-            }
-            else if (data.type === 'CMD_MOVE') {
-                const center = new THREE.Vector3(data.tx, 0, data.tz);
-                const remoteSelected = new Set(data.ids);
-                issueMoveCommand(center, remoteSelected);
-            }
-            else if (data.type === 'CMD_ATTACK') {
-                // find target by grid
-                const target = units.find(u => u.gx === data.targetGx && u.gz === data.targetGz);
-                if(target) {
-                   data.ids.forEach(id => {
-                       const u = units.find(unit => unit.id === id);
-                       if(u) {
-                           u.target = target;
-                           u.state = 'ATTACKING';
-                       }
-                   });
-                }
-            }
-        }
-        
-        function checkMpStart() {
-            if (mpReady && opponentReady) {
-                gameState = STATES.PLAYING;
-                document.getElementById('state-display').innerText = "FIGHT";
-                document.getElementById('build-menu').style.display = 'none';
-                document.getElementById('timer-display').innerText = "---";
-                document.getElementById('start-btn').style.display = 'none';
-                soundMgr.playMusic('battle');
-            }
-        }
+        // --- Core Logic ---
 
-        // --- FUNCTIONS RE-ADDED TO FIX REFERENCE ERRORS ---
-        
         function selectBuildUnit(type) {
             if (gameState !== STATES.SETUP) return;
             soundMgr.sfxClick();
@@ -1761,7 +1845,45 @@
             if(cursorMesh) cursorMesh.visible = false;
         }
 
-        // --- Interaction Logic ---
+        function generateEnemyArmy() {
+            let money = currentDifficulty.budget;
+            
+            if (gameMode === 'CAMPAIGN') {
+                let multiplier = 1.0;
+                for (let i = 0; i < campaignLevel; i++) {
+                    if (i < 2) {
+                        multiplier *= 1.10; 
+                    } else {
+                        multiplier *= 1.05; 
+                    }
+                }
+                money = Math.floor(money * multiplier);
+            }
+
+            const validRows = [5, 6, 7];
+            const types = ['ARCHER', 'SWORDSMAN', 'KNIGHT'];
+            
+            while (money >= 2) {
+                const gx = Math.floor(Math.random() * GRID_SIZE);
+                const gz = validRows[Math.floor(Math.random() * validRows.length)];
+                
+                const occupied = units.find(u => u.gx === gx && u.gz === gz);
+                if (occupied) continue;
+
+                let typeKey = types[Math.floor(Math.random() * types.length)];
+                if (money < 4 && typeKey === 'KNIGHT') typeKey = 'SWORDSMAN';
+                
+                const cost = UNIT_TYPES[typeKey].cost;
+                if (money >= cost) {
+                    money -= cost;
+                    units.push(new Unit(typeKey, gx, gz, TEAMS.ENEMY));
+                } else {
+                    break; 
+                }
+            }
+        }
+
+        // --- Interaction ---
 
         function onMouseDown(e) {
             if (e.button !== 0 && e.button !== 2) return;
@@ -2249,6 +2371,12 @@
 
             // GLOBAL Auto-Attack Logic (For all units)
             // Each client runs this locally. Ideally deterministic.
+            // NOTE: In Host-Auth MP, CLIENT skips this block and waits for sync.
+            if (gameMode === 'MULTIPLAYER' && !isHost) {
+                // Client does nothing logic-wise, waits for sync
+                return;
+            }
+
             units.forEach(u => {
                  if (!u.isManual && u.state === 'IDLE') {
                     let closest = null;
