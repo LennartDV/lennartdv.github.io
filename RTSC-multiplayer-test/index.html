@@ -739,6 +739,22 @@
     <div id="overlay-container"></div>
 
     <script>
+        // --- GLOBAL UTILITIES ---
+        function isTileFree(gx, gz, excludeId = null) {
+            if (gx < 0 || gx >= GRID_SIZE || gz < 0 || gz >= GRID_SIZE) return false;
+            return !units.some(u => u.id !== excludeId && u.gx === gx && u.gz === gz);
+        }
+        
+        function toScreenPosition(objPos, camera) {
+            const vector = objPos.clone();
+            const widthHalf = 0.5 * window.innerWidth;
+            const heightHalf = 0.5 * window.innerHeight;
+            vector.project(camera);
+            vector.x = (vector.x * widthHalf) + widthHalf;
+            vector.y = -(vector.y * heightHalf) + heightHalf;
+            return { x: vector.x, y: vector.y };
+        }
+
         // --- AUDIO MANAGER ---
         class SoundManager {
             constructor() {
@@ -1025,6 +1041,7 @@
 
             const timerInterval = setInterval(() => {
                 if (gameState === STATES.SETUP) {
+                    // In MP, don't countdown until both ready (handled differently)
                     if (gameMode !== 'MULTIPLAYER') {
                         setupTime--;
                         document.getElementById('timer-display').innerText = setupTime;
@@ -1096,11 +1113,11 @@
             document.getElementById('start-menu').style.display = 'none';
             document.getElementById('mode-menu').style.display = 'flex';
             
-            if (localStorage.getItem('rts_campaign_level')) {
-                document.getElementById('btn-continue').style.display = 'block';
-            } else {
-                document.getElementById('btn-continue').style.display = 'none';
-            }
+            // Check for save (This logic needs update for multi-slot)
+            // For multi-slot, we don't show "Continue" here, we show Campaign -> Slot Menu
+            // But user requested "Continue" flow.
+            // Let's hide generic continue and use the slot system.
+            document.getElementById('btn-continue').style.display = 'none';
         }
         
         function backToMain() {
@@ -1181,6 +1198,7 @@
         }
         
         function showCampaignDifficulty() {
+            // Replaced by showSaveSlots
             showSaveSlots();
         }
         
@@ -1289,53 +1307,6 @@
             
             // Reset Camera
             cameraAngle = Math.PI;
-        }
-
-        // --- MISSING FUNCTION RE-ADDED ---
-        function selectBuildUnit(type) {
-            if (gameState !== STATES.SETUP) return;
-            soundMgr.sfxClick();
-            selectedBuildType = type;
-            document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
-            document.getElementById(`card-${type.toLowerCase()}`).classList.add('selected');
-            
-            if(cursorMesh) cursorMesh.visible = true;
-        }
-
-        // --- MISSING FUNCTION RE-ADDED ---
-        function finishSetup() {
-            if (gameState !== STATES.SETUP) return;
-            
-            soundMgr.sfxClick();
-            
-            // MP Logic
-            if (gameMode === 'MULTIPLAYER') {
-                mpReady = true;
-                document.getElementById('start-btn').innerText = "WAITING...";
-                document.getElementById('start-btn').disabled = true;
-                conn.send({ type: 'READY' });
-                checkMpStart();
-                return;
-            }
-            
-            soundMgr.playMusic('battle');
-            
-            // SP Logic
-            if (gameMode === 'SKIRMISH') {
-                const diffVal = document.getElementById('difficulty-select').value;
-                currentDifficulty = DIFFICULTIES[diffVal];
-            } 
-            
-            generateEnemyArmy();
-
-            gameState = STATES.PLAYING;
-            document.getElementById('state-display').innerText = "FIGHT";
-            document.getElementById('build-menu').style.display = 'none';
-            document.getElementById('timer-display').innerText = "---";
-            
-            selectedBuildType = null;
-            document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
-            if(cursorMesh) cursorMesh.visible = false;
         }
         
         function enterSetup() {
@@ -1619,43 +1590,178 @@
             }
         }
 
-        function generateEnemyArmy() {
-            let money = currentDifficulty.budget;
+        // --- MULTIPLAYER ---
+        function showMultiplayerMenu() {
+            soundMgr.sfxClick();
+            document.getElementById('mode-menu').style.display = 'none';
+            document.getElementById('mp-menu').style.display = 'flex';
+        }
+        
+        function mpHostGame() {
+            soundMgr.sfxClick();
+            isHost = true;
+            localTeam = TEAMS.PLAYER; // Host is White (0)
+            gameMode = 'MULTIPLAYER';
             
-            if (gameMode === 'CAMPAIGN') {
-                let multiplier = 1.0;
-                for (let i = 0; i < campaignLevel; i++) {
-                    if (i < 2) {
-                        multiplier *= 1.10; 
-                    } else {
-                        multiplier *= 1.05; 
-                    }
+            document.getElementById('mp-menu').style.display = 'none';
+            document.getElementById('mp-lobby').style.display = 'flex';
+            document.getElementById('mp-host-ui').style.display = 'block';
+            document.getElementById('mp-join-ui').style.display = 'none';
+            document.getElementById('mp-lobby-title').innerText = "HOSTING...";
+            
+            peer = new Peer();
+            peer.on('open', (id) => {
+                document.getElementById('host-id-display').value = id;
+            });
+            
+            peer.on('connection', (c) => {
+                conn = c;
+                setupConnection();
+            });
+        }
+        
+        function mpJoinGameScreen() {
+            soundMgr.sfxClick();
+            isHost = false;
+            localTeam = TEAMS.ENEMY; // Client is Black (1)
+            gameMode = 'MULTIPLAYER';
+            
+            document.getElementById('mp-menu').style.display = 'none';
+            document.getElementById('mp-lobby').style.display = 'flex';
+            document.getElementById('mp-host-ui').style.display = 'none';
+            document.getElementById('mp-join-ui').style.display = 'block';
+            document.getElementById('mp-lobby-title').innerText = "JOINING...";
+        }
+        
+        function mpConnectToHost() {
+            const hostId = document.getElementById('join-id-input').value;
+            if(!hostId) return;
+            
+            peer = new Peer();
+            peer.on('open', (id) => {
+                conn = peer.connect(hostId);
+                setupConnection();
+            });
+        }
+        
+        function setupConnection() {
+            conn.on('open', () => {
+                document.getElementById('mp-lobby').style.display = 'none';
+                
+                // Send seed from host
+                if (isHost) {
+                    const seed = Math.random() * 10000;
+                    rng = new SeededRandom(seed);
+                    conn.send({ type: 'INIT', seed: seed });
+                    enterSetup();
                 }
-                money = Math.floor(money * multiplier);
-            }
-
-            const validRows = [5, 6, 7];
-            const types = ['ARCHER', 'SWORDSMAN', 'KNIGHT'];
+            });
             
-            while (money >= 2) {
-                const gx = Math.floor(Math.random() * GRID_SIZE);
-                const gz = validRows[Math.floor(Math.random() * validRows.length)];
-                
-                const occupied = units.find(u => u.gx === gx && u.gz === gz);
-                if (occupied) continue;
-
-                let typeKey = types[Math.floor(Math.random() * types.length)];
-                if (money < 4 && typeKey === 'KNIGHT') typeKey = 'SWORDSMAN';
-                
-                const cost = UNIT_TYPES[typeKey].cost;
-                if (money >= cost) {
-                    money -= cost;
-                    units.push(new Unit(typeKey, gx, gz, TEAMS.ENEMY));
-                } else {
-                    break; 
+            conn.on('data', (data) => {
+                handleMpData(data);
+            });
+        }
+        
+        function handleMpData(data) {
+            if (data.type === 'INIT') {
+                rng = new SeededRandom(data.seed);
+                enterSetup();
+            }
+            else if (data.type === 'PLACE') {
+                const u = new Unit(data.uType, data.gx, data.gz, data.team);
+                units.push(u);
+                soundMgr.sfxPlace();
+            }
+            else if (data.type === 'DELETE') {
+                const u = units.find(u => u.gx === data.gx && u.gz === data.gz);
+                if (u) {
+                    soundMgr.sfxDelete();
+                    u.die();
+                }
+            }
+            else if (data.type === 'READY') {
+                opponentReady = true;
+                checkMpStart();
+            }
+            else if (data.type === 'CMD_MOVE') {
+                const center = new THREE.Vector3(data.tx, 0, data.tz);
+                const remoteSelected = new Set(data.ids);
+                issueMoveCommand(center, remoteSelected);
+            }
+            else if (data.type === 'CMD_ATTACK') {
+                // find target by grid
+                const target = units.find(u => u.gx === data.targetGx && u.gz === data.targetGz);
+                if(target) {
+                   data.ids.forEach(id => {
+                       const u = units.find(unit => unit.id === id);
+                       if(u) {
+                           u.target = target;
+                           u.state = 'ATTACKING';
+                       }
+                   });
                 }
             }
         }
+        
+        function checkMpStart() {
+            if (mpReady && opponentReady) {
+                gameState = STATES.PLAYING;
+                document.getElementById('state-display').innerText = "FIGHT";
+                document.getElementById('build-menu').style.display = 'none';
+                document.getElementById('timer-display').innerText = "---";
+                document.getElementById('start-btn').style.display = 'none';
+                soundMgr.playMusic('battle');
+            }
+        }
+
+        // --- FUNCTIONS RE-ADDED TO FIX REFERENCE ERRORS ---
+        
+        function selectBuildUnit(type) {
+            if (gameState !== STATES.SETUP) return;
+            soundMgr.sfxClick();
+            selectedBuildType = type;
+            document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
+            document.getElementById(`card-${type.toLowerCase()}`).classList.add('selected');
+            
+            if(cursorMesh) cursorMesh.visible = true;
+        }
+
+        function finishSetup() {
+            if (gameState !== STATES.SETUP) return;
+            
+            soundMgr.sfxClick();
+            
+            // MP Logic
+            if (gameMode === 'MULTIPLAYER') {
+                mpReady = true;
+                document.getElementById('start-btn').innerText = "WAITING...";
+                document.getElementById('start-btn').disabled = true;
+                conn.send({ type: 'READY' });
+                checkMpStart();
+                return;
+            }
+            
+            soundMgr.playMusic('battle');
+            
+            // SP Logic
+            if (gameMode === 'SKIRMISH') {
+                const diffVal = document.getElementById('difficulty-select').value;
+                currentDifficulty = DIFFICULTIES[diffVal];
+            } 
+            
+            generateEnemyArmy();
+
+            gameState = STATES.PLAYING;
+            document.getElementById('state-display').innerText = "FIGHT";
+            document.getElementById('build-menu').style.display = 'none';
+            document.getElementById('timer-display').innerText = "---";
+            
+            selectedBuildType = null;
+            document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
+            if(cursorMesh) cursorMesh.visible = false;
+        }
+
+        // --- Interaction Logic ---
 
         function onMouseDown(e) {
             if (e.button !== 0 && e.button !== 2) return;
@@ -2047,7 +2153,7 @@
             vector.y = -(vector.y * heightHalf) + heightHalf;
             return { x: vector.x, y: vector.y };
         }
-        
+
         function applyGridSnap(u, dt) {
             let gx = Math.round((u.mesh.position.x + BOARD_OFFSET) / TILE_SIZE);
             let gz = Math.round((u.mesh.position.z + BOARD_OFFSET) / TILE_SIZE);
@@ -2162,10 +2268,9 @@
 
                     if (closest) {
                         u.target = closest;
-                        // If not in range, the movement logic below handles it
-                        // Just setting target triggers "Chasing" logic in movement block
+                        u.state = 'ATTACKING';
                     }
-                }
+                 }
             });
 
             // AI COMMANDER (Single Player Only)
