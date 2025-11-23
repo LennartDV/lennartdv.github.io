@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTS CHESS</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'Press Start 2P', cursive;
+            user-select: none;
+        }
+        
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            image-rendering: pixelated; 
+            image-rendering: crisps-edges;
+        }
+
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: none; /* Hidden by default until Start */
+        }
+
+        #start-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+        }
+
+        .title-text {
+            font-size: 50px;
+            color: #ffd700;
+            text-shadow: 4px 4px #000;
+            margin-bottom: 40px;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .menu-panel {
+            background: rgba(0, 0, 0, 0.8);
+            border: 4px solid #fff;
+            padding: 30px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .menu-btn {
+            background: #008800;
+            color: white;
+            border: 4px outset #00aa00;
+            font-family: inherit;
+            padding: 15px 30px;
+            cursor: pointer;
+            font-size: 20px;
+            text-transform: uppercase;
+            width: 100%;
+        }
+
+        .menu-btn:hover {
+            background: #00aa00;
+        }
+        
+        /* Info/Controls Modal */
+        #info-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 700px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 4px solid #fff;
+            padding: 30px;
+            z-index: 50;
+            display: none;
+            color: white;
+            pointer-events: auto;
+            text-align: left;
+            box-shadow: 10px 10px 0px #000;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+        
+        #info-modal h2 {
+            color: #ffd700;
+            text-align: center;
+            margin-top: 0;
+            border-bottom: 2px solid #fff;
+            padding-bottom: 10px;
+        }
+        
+        .info-col {
+            display: flex;
+            gap: 40px;
+        }
+        
+        .key { color: #00ff00; }
+        .val { color: #fff; }
+        .section-title { color: #00ffff; margin-top: 15px; margin-bottom: 5px; text-decoration: underline; }
+
+        .ui-panel {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #666;
+            color: white;
+            padding: 10px;
+            image-rendering: pixelated;
+        }
+
+        #top-bar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            gap: 20px;
+        }
+        
+        #settings-bar {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Toggle Switch Styles */
+        .setting-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 6px 10px;
+            border: 2px solid #666;
+            pointer-events: auto;
+        }
+        
+        .setting-label {
+            font-size: 10px;
+            color: white;
+            font-family: inherit;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 32px;
+            height: 16px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .2s;
+            border: 1px solid #888;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 10px;
+            width: 10px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .2s;
+        }
+
+        input:checked + .slider {
+            background-color: #008800;
+            border-color: #00ff00;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(16px);
+        }
+
+        #build-menu {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            text-align: center;
+            align-items: center;
+        }
+        
+        #difficulty-select {
+            background: #333;
+            color: white;
+            border: 2px solid #fff;
+            padding: 10px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            cursor: pointer;
+            height: 60px;
+        }
+
+        .unit-card {
+            background: #333;
+            border: 2px solid #fff;
+            padding: 10px;
+            cursor: pointer;
+            width: 100px;
+            height: 100px; 
+            transition: transform 0.1s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .unit-card:hover {
+            transform: scale(1.05);
+            background: #444;
+        }
+
+        .unit-card.selected {
+            border-color: #ffd700;
+            background: #554400;
+        }
+
+        .unit-info {
+            font-size: 10px;
+            margin-top: 15px;
+            line-height: 1.6;
+            color: #aaa;
+        }
+
+        #start-btn {
+            background: #008800;
+            color: white;
+            border: 4px outset #00aa00;
+            font-family: inherit;
+            padding: 15px 30px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        #start-btn:disabled {
+            background: #333;
+            border: 4px outset #444;
+            cursor: not-allowed;
+        }
+
+        #context-menu {
+            position: absolute;
+            display: none;
+            flex-direction: column;
+            background: #222;
+            border: 2px solid #fff;
+            pointer-events: auto;
+            z-index: 100;
+        }
+
+        .ctx-item {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 12px;
+            color: white;
+        }
+
+        .ctx-item:hover {
+            background: #444;
+        }
+
+        #selection-box {
+            position: absolute;
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            background: rgba(0, 255, 0, 0.1);
+            pointer-events: none;
+            display: none;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 40px;
+            text-align: center;
+            border: 4px solid white;
+            display: none;
+            pointer-events: auto;
+            z-index: 20;
+        }
+        
+        #game-over-header {
+            color: white; 
+            margin-bottom: 10px;
+        }
+        
+        #winner-text {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .hp-bar-container {
+            position: absolute;
+            width: 40px;
+            height: 6px;
+            background: #333;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            display: none; /* Shown via JS */
+            border: 1px solid black;
+        }
+        
+        .hp-bar-fill {
+            height: 100%;
+            background: #0f0;
+            width: 100%;
+            transition: width 0.2s;
+        }
+
+        .damage-text {
+            position: absolute;
+            color: red;
+            font-weight: bold;
+            font-size: 14px;
+            pointer-events: none;
+            animation: floatUp 1s forwards;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-30px); opacity: 0; }
+        }
+
+        #notifications {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+        }
+        
+        .notification {
+            background: rgba(0,0,0,0.5);
+            color: yellow;
+            padding: 5px 10px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        
+        /* CRT Effects */
+        #crt-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.9);
+            display: none;
+        }
+        
+        .crt-on {
+            display: block !important;
+            animation: flicker 0.15s infinite;
+        }
+        
+        @keyframes flicker {
+            0% { opacity: 0.95; }
+            50% { opacity: 1.0; }
+            100% { opacity: 0.95; }
+        }
+
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="crt-overlay"></div>
+
+    <!-- Start Menu -->
+    <div id="start-menu">
+        <div class="title-text">RTS CHESS</div>
+        <div class="menu-panel">
+            <button class="menu-btn" onclick="enterSetup()">START GAME</button>
+            <button class="menu-btn" onclick="toggleInfo()">INFO</button>
+            
+            <div style="display: flex; gap: 20px; margin-top: 10px;">
+                <div class="setting-group">
+                    <span class="setting-label">CRT FX</span>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-crt-menu" onchange="syncSettings('crt')" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <span class="setting-label">LOW RES</span>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-res-menu" onchange="syncSettings('res')" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Info Modal -->
+    <div id="info-modal">
+        <h2>COMMANDER'S GUIDE</h2>
+        <div class="info-col">
+            <div style="flex:1">
+                <div class="section-title">CONTROLS</div>
+                <div><span class="key">L-CLICK</span> : Select / Place Unit / Auto-Attack Enemy</div>
+                <div><span class="key">R-CLICK</span> : Move To / Attack Target / Delete (Setup)</div>
+                <div><span class="key">DRAG</span> : Box Selection</div>
+                <div><span class="key">A</span> : Select All Units</div>
+                <div><span class="key">0-9</span> : Save Squad (if selected) / Load Squad (if empty)</div>
+                <div><span class="key">Q / E</span> : Rotate Camera (Battle Phase)</div>
+                
+                <div class="section-title">UNITS</div>
+                <div><span class="key">ARCHER</span>: Ranged, Low HP. Good support.</div>
+                <div><span class="key">SWORD</span>: Melee, Medium HP. Frontline.</div>
+                <div><span class="key">KNIGHT</span>: Fast Melee, High HP. Flanker.</div>
+            </div>
+            <div style="flex:1">
+                <div class="section-title">GAMEPLAY</div>
+                <div>1. <span class="key">SETUP</span>: Spend 40 points to build your army. You can only build on the first 3 rows.</div>
+                <div>2. <span class="key">BATTLE</span>: Units fight automatically if idle. You can override them with R-Click commands.</div>
+                <div>3. <span class="key">STRATEGY</span>: R-Click selected units to open the Strategy Menu (Spike, Split, Surround).</div>
+                <br>
+                <div><span class="key">GOAL</span>: Eliminate all enemy units.</div>
+            </div>
+        </div>
+        <div style="text-align:center; margin-top:30px;">
+            <button class="menu-btn" onclick="toggleInfo()" style="width:200px;">CLOSE</button>
+        </div>
+    </div>
+    
+    <!-- Game UI -->
+    <div id="game-ui">
+        <div id="top-bar" class="ui-panel">
+            <div>Points: <span id="money-display">40</span></div>
+            <div>Time: <span id="timer-display">120</span>s</div>
+            <div>State: <span id="state-display">SETUP</span></div>
+        </div>
+        
+        <div id="settings-bar">
+            <div class="setting-group">
+                <span class="setting-label">CRT</span>
+                <label class="switch">
+                    <input type="checkbox" id="chk-crt" onchange="toggleCRT()" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-group">
+                <span class="setting-label">LOW RES</span>
+                <label class="switch">
+                    <input type="checkbox" id="chk-res" onchange="toggleRes()" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div id="build-menu" class="ui-panel">
+            <div class="unit-card" id="card-archer" onclick="selectBuildUnit('ARCHER')">
+                <div>ARCHER</div>
+                <div class="unit-info">2pts | 60HP<br>Ranged 3x4</div>
+            </div>
+            <div class="unit-card" id="card-swordsman" onclick="selectBuildUnit('SWORDSMAN')">
+                <div>SWORD</div>
+                <div class="unit-info">2pts | 160HP<br>Melee</div>
+            </div>
+            <div class="unit-card" id="card-knight" onclick="selectBuildUnit('KNIGHT')">
+                <div>KNIGHT</div>
+                <div class="unit-info">4pts | 280HP<br>Dual Strike</div>
+            </div>
+            
+            <select id="difficulty-select">
+                <option value="EASY">EASY</option>
+                <option value="NORMAL" selected>NORMAL</option>
+                <option value="HARD">HARD</option>
+            </select>
+
+            <button id="start-btn" onclick="finishSetup()">START BATTLE</button>
+        </div>
+
+        <div id="context-menu">
+            <div class="ctx-item" onclick="applyStrategy('spike')">Strategy: Spike</div>
+            <div class="ctx-item" onclick="applyStrategy('split')">Strategy: Split</div>
+            <div class="ctx-item" onclick="applyStrategy('surround')">Strategy: Surround</div>
+        </div>
+        
+        <div id="selection-box"></div>
+        
+        <div id="notifications"></div>
+
+        <div id="game-over">
+            <h1 id="game-over-header">GAME OVER</h1>
+            <h2 id="winner-text"></h2>
+            <button id="restart-btn" onclick="location.reload()" style="padding:10px; font-family:inherit; cursor:pointer;">RESTART</button>
+        </div>
+    </div>
+
+    <!-- Container for HP bars -->
+    <div id="overlay-container"></div>
+
+    <script>
+        // --- AUDIO MANAGER ---
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.bgmOscillators = [];
+                this.currentTrack = null;
+                this.isPlaying = false;
+                this.volume = 0.1;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.playMusic('menu');
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTone(freq, type, duration, vol = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+
+            playNoise(duration, vol = 0.1) {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * duration;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                noise.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            }
+
+            sfxClick() { this.playTone(800, 'square', 0.05, 0.05); }
+            sfxPlace() { this.playTone(400, 'triangle', 0.1, 0.1); this.playTone(600, 'square', 0.1, 0.05); }
+            sfxDelete() { this.playTone(150, 'sawtooth', 0.2, 0.1); }
+            sfxShoot() { this.playNoise(0.1, 0.05); }
+            sfxHit() { this.playTone(100, 'sawtooth', 0.1, 0.1); }
+            sfxExplosion() { this.playNoise(0.3, 0.2); }
+
+            playMusic(track) {
+                if (!this.ctx) return;
+                this.stopMusic();
+                this.currentTrack = track;
+                this.isPlaying = true;
+                this.musicLoop();
+            }
+
+            stopMusic() {
+                this.isPlaying = false;
+                if (this.timer) clearTimeout(this.timer);
+            }
+
+            musicLoop() {
+                if (!this.isPlaying) return;
+                
+                const t = this.ctx.currentTime;
+                let nextTime = 0.2; // Default step
+
+                if (this.currentTrack === 'menu') {
+                    // Relaxing Arpeggios
+                    const notes = [261.63, 329.63, 392.00, 523.25]; // C Major
+                    const note = notes[Math.floor(Math.random() * notes.length)];
+                    this.playTone(note, 'sine', 0.5, 0.05);
+                    nextTime = 0.3;
+                } else if (this.currentTrack === 'setup') {
+                    // Tense Bass
+                    const notes = [110, 123.47, 130.81]; // A2, B2, C3
+                    const note = notes[Math.floor(Math.random() * notes.length)];
+                    this.playTone(note, 'triangle', 0.2, 0.1);
+                    if (Math.random() > 0.7) this.playTone(220, 'square', 0.1, 0.02); // High blip
+                    nextTime = 0.25;
+                } else if (this.currentTrack === 'battle') {
+                    // Fast Chaos
+                    const bass = [55, 65.41];
+                    this.playTone(bass[Math.floor(Math.random()*2)], 'sawtooth', 0.1, 0.15);
+                    
+                    if (Math.random() > 0.5) {
+                        const melody = [440, 523.25, 659.25, 587.33];
+                        this.playTone(melody[Math.floor(Math.random()*4)], 'square', 0.1, 0.05);
+                    }
+                    // Drums
+                    if (Math.random() > 0.6) this.playNoise(0.05, 0.05);
+                    nextTime = 0.15;
+                }
+
+                this.timer = setTimeout(() => this.musicLoop(), nextTime * 1000);
+            }
+        }
+
+        const soundMgr = new SoundManager();
+
+        // --- Constants & Config ---
+        const GRID_SIZE = 8;
+        const TILE_SIZE = 4;
+        const BOARD_OFFSET = (GRID_SIZE * TILE_SIZE) / 2 - (TILE_SIZE / 2); // Center board at 0,0
+
+        const TEAMS = { PLAYER: 0, ENEMY: 1 };
+        const STATES = { MENU: -1, SETUP: 0, PLAYING: 1, ENDED: 2 };
+        
+        // Stats Updated: Higher HP, Lower Damage
+        const UNIT_TYPES = {
+            ARCHER: { 
+                name: 'Archer', cost: 2, hp: 60, dmg: [5, 10], hitChance: 0.8, 
+                range: 4, type: 'ranged', color: 0x44aa44, cooldown: 1.0, speed: 2.0 
+            },
+            SWORDSMAN: { 
+                name: 'Swordsman', cost: 2, hp: 160, dmg: 15, hitChance: 1.0, 
+                range: 1.5, type: 'melee', color: 0x4444aa, cooldown: 1.0, speed: 2.0
+            },
+            KNIGHT: { 
+                name: 'Knight', cost: 4, hp: 280, dmg: 18, hitChance: 1.0, 
+                range: 1.5, type: 'melee', color: 0xaa4444, cooldown: 0.5, speed: 3.5
+            }
+        };
+
+        const DIFFICULTIES = {
+            EASY: { budget: 24, cooldownMult: 1.2 },   // 60% of 40
+            NORMAL: { budget: 40, cooldownMult: 1.0 }, // 100% of 40
+            HARD: { budget: 48, cooldownMult: 0.8 }    // 120% of 40
+        };
+
+        // --- Global State ---
+        let gameState = STATES.MENU; // Start in Menu
+        let playerMoney = 40;
+        let setupTime = 120; 
+        let selectedBuildType = null;
+        let currentDifficulty = DIFFICULTIES.NORMAL;
+        
+        // Camera Controls
+        let cameraAngle = Math.PI;
+        const keys = { q: false, e: false };
+        
+        // AI State
+        let aiTimer = 0; // Limits AI decision frequency
+        
+        // Visual Settings (Default ON)
+        let isCRT = true;
+        let isLowRes = true;
+        
+        let units = []; // All unit objects
+        let projectiles = [];
+        let particles = [];
+        let selectedUnits = new Set();
+        let squads = {}; // 0-9 keys mapped to arrays of unit IDs
+        let mouse = new THREE.Vector2();
+        let raycaster = new THREE.Raycaster();
+        
+        // Drag Selection
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        const selectionBoxEl = document.getElementById('selection-box');
+
+        // Three.js Core
+        let scene, camera, renderer, boardGroup, clock;
+        let cursorMesh; // For grid highlighter
+        let buildPlane; // Mathematical plane for interaction
+        
+        // --- Initialization ---
+        function init() {
+            // Clock for Delta Time
+            clock = new THREE.Clock();
+
+            // Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a1a);
+            
+            // Camera (Isographic-ish perspective)
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            // Initial position
+            camera.position.set(0, 45, -55);
+            camera.lookAt(0, 0, -5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: false }); // False for pixel look
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.BasicShadowMap; // Hard shadows for PS1 feel
+            document.body.appendChild(renderer.domElement);
+
+            // Apply Initial Settings
+            applyVisuals();
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x606060);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(20, 40, 20);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            scene.add(dirLight);
+
+            createEnvironment();
+            
+            // Build Plane (Invisible mathematical plane at y=0)
+            buildPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+            // Cursor Mesh (Highlighter)
+            const cursorGeo = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE);
+            const cursorMat = new THREE.MeshBasicMaterial({ 
+                color: 0x00ff00, 
+                transparent: true, 
+                opacity: 0.3, 
+                side: THREE.DoubleSide 
+            });
+            cursorMesh = new THREE.Mesh(cursorGeo, cursorMat);
+            cursorMesh.rotation.x = -Math.PI / 2;
+            cursorMesh.position.set(0, 0.05, 0); // Slightly above board
+            cursorMesh.visible = false;
+            scene.add(cursorMesh);
+            
+            // Events
+            window.addEventListener('resize', onWindowResize, false);
+            document.addEventListener('mousedown', onMouseDown);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', (e) => {
+                const k = e.key.toLowerCase();
+                if(k === 'q' || k === 'e') keys[k] = false;
+            });
+            document.addEventListener('contextmenu', e => e.preventDefault());
+            
+            // Start Loop
+            requestAnimationFrame(animate);
+
+            // Start Timer
+            const timerInterval = setInterval(() => {
+                if (gameState === STATES.SETUP) {
+                    setupTime--;
+                    document.getElementById('timer-display').innerText = setupTime;
+                    if (setupTime <= 0) {
+                        finishSetup();
+                        clearInterval(timerInterval);
+                    }
+                }
+            }, 1000);
+        }
+        
+        function applyVisuals() {
+            const overlay = document.getElementById('crt-overlay');
+            if (isCRT) overlay.classList.add('crt-on');
+            else overlay.classList.remove('crt-on');
+            onWindowResize();
+        }
+        
+        // --- Visual Toggle Functions ---
+        function toggleCRT() {
+            isCRT = document.getElementById('chk-crt').checked;
+            document.getElementById('chk-crt-menu').checked = isCRT;
+            applyVisuals();
+            soundMgr.sfxClick();
+        }
+        
+        function toggleRes() {
+            isLowRes = document.getElementById('chk-res').checked;
+            document.getElementById('chk-res-menu').checked = isLowRes;
+            applyVisuals();
+            soundMgr.sfxClick();
+        }
+        
+        function syncSettings(type) {
+            if (type === 'crt') {
+                isCRT = document.getElementById('chk-crt-menu').checked;
+                document.getElementById('chk-crt').checked = isCRT;
+            } else {
+                isLowRes = document.getElementById('chk-res-menu').checked;
+                document.getElementById('chk-res').checked = isLowRes;
+            }
+            applyVisuals();
+            soundMgr.sfxClick();
+        }
+
+        // --- Game Logic ---
+        
+        function toggleInfo() {
+            soundMgr.sfxClick();
+            soundMgr.init(); // Ensure audio context starts
+            const modal = document.getElementById('info-modal');
+            if (modal.style.display === 'block') {
+                modal.style.display = 'none';
+            } else {
+                modal.style.display = 'block';
+            }
+        }
+        
+        function enterSetup() {
+            // Initialize Sound on first interaction
+            soundMgr.init();
+            soundMgr.playMusic('setup');
+            
+            gameState = STATES.SETUP;
+            cameraAngle = Math.PI; // Reset rotation
+            
+            document.getElementById('start-menu').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'block';
+            
+            camera.position.set(0, 45, -55);
+            camera.lookAt(0, 0, -5);
+        }
+
+        function createEnvironment() {
+            // The Table
+            const tableGeo = new THREE.PlaneGeometry(100, 100);
+            const tableMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 1 });
+            const table = new THREE.Mesh(tableGeo, tableMat);
+            table.rotation.x = -Math.PI / 2;
+            table.position.y = -0.5;
+            table.receiveShadow = true;
+            scene.add(table);
+
+            // The Board (8x8)
+            boardGroup = new THREE.Group();
+            const tileGeo = new THREE.BoxGeometry(TILE_SIZE, 0.5, TILE_SIZE);
+            
+            for (let x = 0; x < GRID_SIZE; x++) {
+                for (let z = 0; z < GRID_SIZE; z++) {
+                    const isWhite = (x + z) % 2 === 0;
+                    const tileMat = new THREE.MeshStandardMaterial({ 
+                        color: isWhite ? 0xffffff : 0x333333, 
+                        flatShading: true
+                    });
+                    const tile = new THREE.Mesh(tileGeo, tileMat);
+                    tile.position.set(
+                        x * TILE_SIZE - BOARD_OFFSET, 
+                        -0.25, 
+                        z * TILE_SIZE - BOARD_OFFSET
+                    );
+                    tile.receiveShadow = true;
+                    tile.userData = { isTile: true, gx: x, gz: z };
+                    boardGroup.add(tile);
+                }
+            }
+            scene.add(boardGroup);
+        }
+
+        // --- Unit Creation ---
+        class Unit {
+            constructor(typeKey, gx, gz, team) {
+                this.id = Math.random().toString(36).substr(2, 9);
+                this.stats = { ...UNIT_TYPES[typeKey] };
+                this.typeKey = typeKey;
+                this.team = team;
+                this.maxHp = this.stats.hp;
+                this.currentHp = this.stats.hp;
+                this.gx = gx; // Grid X
+                this.gz = gz; // Grid Z
+                this.isManual = false; // For command overriding
+                
+                // 3D Mesh
+                this.mesh = this.createMesh(typeKey, team);
+                this.mesh.position.set(
+                    gx * TILE_SIZE - BOARD_OFFSET,
+                    0,
+                    gz * TILE_SIZE - BOARD_OFFSET
+                );
+                scene.add(this.mesh);
+
+                // Logic State
+                this.cooldownTimer = 0;
+                this.target = null; // Unit object
+                this.moveTarget = null; // Vector3
+                this.state = 'IDLE'; 
+                this.strategy = 'DEFAULT'; 
+
+                // HP Bar Element
+                this.hpBar = document.createElement('div');
+                this.hpBar.className = 'hp-bar-container';
+                this.hpBar.innerHTML = `<div class="hp-bar-fill"></div>`;
+                document.getElementById('overlay-container').appendChild(this.hpBar);
+            }
+
+            createMesh(type, team) {
+                const group = new THREE.Group();
+                const color = team === TEAMS.PLAYER ? 0xffffff : 0x222222; // Darker black
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: color, 
+                    flatShading: true,
+                    roughness: team === TEAMS.PLAYER ? 0.5 : 0.8, // More matte for black team
+                    metalness: team === TEAMS.PLAYER ? 0.5 : 0.2
+                });
+                
+                let geo;
+                if (type === 'ARCHER') {
+                    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 2, 6), mat);
+                    body.position.y = 1;
+                    const head = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1, 4), new THREE.MeshStandardMaterial({ color: 0x44aa44, flatShading: true }));
+                    head.position.y = 2.5;
+                    group.add(body, head);
+                } else if (type === 'SWORDSMAN') {
+                    // Overhauled Swordsman
+                    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.2, 1.8), mat);
+                    body.position.y = 1.1;
+                    
+                    // Sword
+                    const swordHandle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1, 0.2), new THREE.MeshStandardMaterial({ color: 0x444444, flatShading: true }));
+                    swordHandle.position.set(1.2, 1.5, 0.4);
+                    const swordBlade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.4), new THREE.MeshStandardMaterial({ color: 0xcccccc, flatShading: true }));
+                    swordBlade.position.set(1.2, 3.0, 0.4);
+                    
+                    // Shield
+                    const shield = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.5, 2), new THREE.MeshStandardMaterial({ color: 0x555555, flatShading: true }));
+                    shield.position.set(-1.1, 1.5, 0);
+
+                    group.add(body, swordHandle, swordBlade, shield);
+                } else if (type === 'KNIGHT') {
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 1, 8), mat);
+                    base.position.y = 0.5;
+                    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 1.2), mat);
+                    body.position.y = 1.5;
+                    const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 2), mat);
+                    head.position.set(0, 3, 0.5);
+                    group.add(base, body, head);
+                }
+                
+                // Selection Ring
+                const ringGeo = new THREE.RingGeometry(1.5, 1.7, 16);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, visible: false });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = -Math.PI / 2;
+                ring.position.y = 0.1;
+                ring.name = "selectionRing";
+                group.add(ring);
+
+                group.castShadow = true;
+                group.receiveShadow = true;
+                group.userData = { isUnit: true, unitId: this.id };
+                return group;
+            }
+
+            updatePos(dt) {
+                if (this.moveTarget) {
+                    const speed = this.stats.speed; // Units per second
+                    const dist = this.mesh.position.distanceTo(this.moveTarget);
+                    const step = speed * dt;
+
+                    if (dist < step) {
+                        this.gx = Math.round((this.moveTarget.x + BOARD_OFFSET) / TILE_SIZE);
+                        this.gz = Math.round((this.moveTarget.z + BOARD_OFFSET) / TILE_SIZE);
+                        this.mesh.position.set(
+                            this.gx * TILE_SIZE - BOARD_OFFSET,
+                            0,
+                            this.gz * TILE_SIZE - BOARD_OFFSET
+                        );
+                        this.moveTarget = null;
+                        this.state = 'IDLE';
+                        this.isManual = false; // Command finished
+                    } else {
+                        const dir = new THREE.Vector3().subVectors(this.moveTarget, this.mesh.position).normalize();
+                        this.mesh.position.add(dir.multiplyScalar(step));
+                        this.mesh.lookAt(this.moveTarget.x, this.mesh.position.y, this.moveTarget.z);
+                    }
+                }
+            }
+
+            takeDamage(amount) {
+                this.currentHp -= amount;
+                
+                const text = document.createElement('div');
+                text.className = 'damage-text';
+                text.innerText = `-${amount}`;
+                document.getElementById('game-ui').appendChild(text);
+                
+                const screenPos = toScreenPosition(this.mesh.position.clone().add(new THREE.Vector3(0,3,0)), camera);
+                text.style.left = screenPos.x + 'px';
+                text.style.top = screenPos.y + 'px';
+                setTimeout(() => text.remove(), 1000);
+
+                if (this.currentHp <= 0) {
+                    this.die();
+                } else {
+                    soundMgr.sfxHit();
+                }
+            }
+
+            die() {
+                soundMgr.sfxExplosion();
+                scene.remove(this.mesh);
+                this.hpBar.remove();
+                units = units.filter(u => u.id !== this.id);
+                selectedUnits.delete(this.id);
+                
+                for(let i=0; i<5; i++) {
+                    particles.push(new Particle(this.mesh.position, this.team === TEAMS.PLAYER ? 0xffffff : 0x000000));
+                }
+            }
+            
+            updateUI() {
+                if (this.currentHp > 0) {
+                    const screenPos = toScreenPosition(this.mesh.position.clone().add(new THREE.Vector3(0, 4, 0)), camera);
+                    this.hpBar.style.display = 'block';
+                    this.hpBar.style.left = screenPos.x + 'px';
+                    this.hpBar.style.top = screenPos.y + 'px';
+                    const pct = (this.currentHp / this.maxHp) * 100;
+                    this.hpBar.children[0].style.width = pct + '%';
+                    
+                    const ring = this.mesh.getObjectByName("selectionRing");
+                    if (ring) ring.material.visible = selectedUnits.has(this.id);
+                }
+            }
+        }
+
+        class Particle {
+            constructor(pos, color) {
+                this.mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 0.3, 0.3),
+                    new THREE.MeshBasicMaterial({ color: color })
+                );
+                this.mesh.position.copy(pos);
+                this.vel = new THREE.Vector3(
+                    (Math.random() - 0.5) * 10.0,
+                    Math.random() * 10.0,
+                    (Math.random() - 0.5) * 10.0
+                );
+                this.life = 1.0;
+                scene.add(this.mesh);
+            }
+            update(dt) {
+                this.mesh.position.add(this.vel.clone().multiplyScalar(dt));
+                this.vel.y -= 20.0 * dt; 
+                this.life -= 2.0 * dt;
+                if (this.life <= 0) {
+                    scene.remove(this.mesh);
+                    return false;
+                }
+                this.mesh.rotation.x += 5 * dt;
+                this.mesh.rotation.y += 5 * dt;
+                return true;
+            }
+        }
+
+        class Projectile {
+            constructor(startPos, endPos, type) {
+                this.pos = startPos.clone().add(new THREE.Vector3(0, 2, 0));
+                this.endPos = endPos.clone();
+                this.type = type; // 'arrow'
+                this.progress = 0;
+                
+                const geo = new THREE.SphereGeometry(0.2, 4, 4);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                this.mesh = new THREE.Mesh(geo, mat);
+                this.mesh.position.copy(this.pos);
+                scene.add(this.mesh);
+                
+                this.startY = this.pos.y;
+                this.controlY = Math.max(startPos.y, endPos.y) + 8; 
+            }
+
+            update(dt) {
+                this.progress += 1.5 * dt; 
+                if (this.progress >= 1) {
+                    scene.remove(this.mesh);
+                    return false; 
+                }
+
+                const x = THREE.MathUtils.lerp(this.pos.x, this.endPos.x, this.progress);
+                const z = THREE.MathUtils.lerp(this.pos.z, this.endPos.z, this.progress);
+                
+                const t = this.progress;
+                const y = Math.pow(1-t, 2) * this.startY + 
+                          2 * (1-t) * t * this.controlY + 
+                          Math.pow(t, 2) * this.endPos.y;
+
+                this.mesh.position.set(x, y, z);
+                return true;
+            }
+        }
+
+        // --- Core Logic ---
+
+        function selectBuildUnit(type) {
+            if (gameState !== STATES.SETUP) return;
+            soundMgr.sfxClick();
+            selectedBuildType = type;
+            document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
+            document.getElementById(`card-${type.toLowerCase()}`).classList.add('selected');
+            
+            // Show cursor immediately
+            if(cursorMesh) cursorMesh.visible = true;
+        }
+
+        function finishSetup() {
+            if (gameState !== STATES.SETUP) return;
+            
+            soundMgr.sfxClick();
+            soundMgr.playMusic('battle');
+            
+            // Get Difficulty
+            const diffVal = document.getElementById('difficulty-select').value;
+            currentDifficulty = DIFFICULTIES[diffVal];
+            
+            generateEnemyArmy();
+
+            gameState = STATES.PLAYING;
+            document.getElementById('state-display').innerText = "FIGHT";
+            document.getElementById('build-menu').style.display = 'none';
+            document.getElementById('timer-display').innerText = "---";
+            
+            selectedBuildType = null;
+            document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
+            if(cursorMesh) cursorMesh.visible = false;
+        }
+
+        function generateEnemyArmy() {
+            let money = currentDifficulty.budget;
+            const validRows = [5, 6, 7];
+            const types = ['ARCHER', 'SWORDSMAN', 'KNIGHT'];
+            
+            while (money >= 2) {
+                const gx = Math.floor(Math.random() * GRID_SIZE);
+                const gz = validRows[Math.floor(Math.random() * validRows.length)];
+                
+                const occupied = units.find(u => u.gx === gx && u.gz === gz);
+                if (occupied) continue;
+
+                let typeKey = types[Math.floor(Math.random() * types.length)];
+                if (money < 4 && typeKey === 'KNIGHT') typeKey = 'SWORDSMAN';
+                
+                const cost = UNIT_TYPES[typeKey].cost;
+                if (money >= cost) {
+                    money -= cost;
+                    units.push(new Unit(typeKey, gx, gz, TEAMS.ENEMY));
+                } else {
+                    break; 
+                }
+            }
+        }
+
+        // --- Interaction ---
+
+        function onMouseDown(e) {
+            if (e.button !== 0 && e.button !== 2) return;
+            if (gameState === STATES.MENU) return;
+            
+            // Drag Start Logic (Universal)
+            if (e.button === 0) {
+                isDragging = true;
+                dragStart = { x: e.clientX, y: e.clientY };
+                selectionBoxEl.style.display = 'block';
+                selectionBoxEl.style.width = '0px';
+                selectionBoxEl.style.height = '0px';
+            }
+            
+            const ctxMenu = document.getElementById('context-menu');
+            ctxMenu.style.display = 'none';
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            if (gameState === STATES.SETUP) {
+                handleSetupClick(e, intersects);
+            } else if (gameState === STATES.PLAYING) {
+                handleGameClick(e, intersects);
+            }
+        }
+
+        function handleSetupClick(e, intersects) {
+            if (e.button === 2) {
+                // Right Click
+                const unitHit = intersects.find(i => i.object.parent && i.object.parent.userData.isUnit);
+                if (unitHit) {
+                    const uid = unitHit.object.parent.userData.unitId;
+                    const unit = units.find(u => u.id === uid);
+                    if (unit && unit.team === TEAMS.PLAYER) {
+                        playerMoney += unit.stats.cost;
+                        soundMgr.sfxDelete();
+                        unit.die();
+                        document.getElementById('money-display').innerText = playerMoney;
+                    }
+                } else {
+                    if (selectedBuildType) {
+                        selectedBuildType = null;
+                        document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
+                        cursorMesh.visible = false;
+                    }
+                }
+                return;
+            } 
+            
+            if (e.button === 0) {
+                // Left Click
+                const unitHit = intersects.find(i => i.object.parent && i.object.parent.userData.isUnit);
+
+                // If we clicked a unit, just toggle it immediately (drag might clear others later if it moves far)
+                if (unitHit) {
+                    const uid = unitHit.object.parent.userData.unitId;
+                    const unit = units.find(u => u.id === uid);
+                    if (unit && unit.team === TEAMS.PLAYER) {
+                        if (selectedUnits.has(uid)) selectedUnits.delete(uid);
+                        else selectedUnits.add(uid);
+                        soundMgr.sfxClick();
+                    }
+                } else if (selectedBuildType) {
+                    isDragging = false; // Disable drag if building
+                    selectionBoxEl.style.display = 'none';
+                    
+                    raycaster.setFromCamera(mouse, camera);
+                    const target = new THREE.Vector3();
+                    raycaster.ray.intersectPlane(buildPlane, target);
+                    
+                    if (target) {
+                        const gx = Math.round((target.x + BOARD_OFFSET) / TILE_SIZE);
+                        const gz = Math.round((target.z + BOARD_OFFSET) / TILE_SIZE);
+
+                        if (gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz <= 2) {
+                            const existing = units.find(u => u.gx === gx && u.gz === gz);
+                            if (!existing) {
+                                const cost = UNIT_TYPES[selectedBuildType].cost;
+                                if (playerMoney >= cost) {
+                                    playerMoney -= cost;
+                                    units.push(new Unit(selectedBuildType, gx, gz, TEAMS.PLAYER));
+                                    soundMgr.sfxPlace();
+                                    document.getElementById('money-display').innerText = playerMoney;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Clicked on ground without build -> Deselect
+                    selectedUnits.clear();
+                }
+                // Note: Drag box selection logic happens in onMouseUp
+            }
+        }
+
+        function handleGameClick(e, intersects) {
+            if (e.button === 0) { // Left Click
+                const unitHit = intersects.find(i => i.object.parent && i.object.parent.userData.isUnit);
+                
+                if (unitHit) {
+                    const uid = unitHit.object.parent.userData.unitId;
+                    const unit = units.find(u => u.id === uid);
+                    
+                    if (unit.team === TEAMS.ENEMY) {
+                        isDragging = false; 
+                        selectionBoxEl.style.display = 'none';
+                        selectedUnits.forEach(myUid => {
+                            const myUnit = units.find(u => u.id === myUid);
+                            if (myUnit) {
+                                myUnit.target = unit;
+                                myUnit.state = 'ATTACKING';
+                                myUnit.isManual = true;
+                            }
+                        });
+                        soundMgr.sfxClick();
+                        showNotification("Attack command issued!");
+                    } 
+                } else {
+                    // Clicked ground
+                    raycaster.setFromCamera(mouse, camera);
+                    const target = new THREE.Vector3();
+                    raycaster.ray.intersectPlane(buildPlane, target);
+                    
+                    // If not drag, will execute in onMouseUp
+                }
+            } else if (e.button === 2) { // Right Click
+                if (selectedUnits.size > 0) {
+                    const ctxMenu = document.getElementById('context-menu');
+                    ctxMenu.style.display = 'flex';
+                    ctxMenu.style.left = e.clientX + 'px';
+                    ctxMenu.style.top = e.clientY + 'px';
+                }
+            }
+        }
+
+        function onMouseMove(e) {
+            if (isDragging) {
+                const current = { x: e.clientX, y: e.clientY };
+                const width = Math.abs(current.x - dragStart.x);
+                const height = Math.abs(current.y - dragStart.y);
+                const left = Math.min(current.x, dragStart.x);
+                const top = Math.min(current.y, dragStart.y);
+
+                selectionBoxEl.style.left = left + 'px';
+                selectionBoxEl.style.top = top + 'px';
+                selectionBoxEl.style.width = width + 'px';
+                selectionBoxEl.style.height = height + 'px';
+            }
+
+            if (gameState === STATES.SETUP && selectedBuildType && cursorMesh) {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                
+                raycaster.setFromCamera(mouse, camera);
+                const target = new THREE.Vector3();
+                raycaster.ray.intersectPlane(buildPlane, target);
+                
+                if (target) {
+                    const gx = Math.round((target.x + BOARD_OFFSET) / TILE_SIZE);
+                    const gz = Math.round((target.z + BOARD_OFFSET) / TILE_SIZE);
+                    
+                    if (gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz <= 2) {
+                         cursorMesh.visible = true;
+                         cursorMesh.position.set(
+                             gx * TILE_SIZE - BOARD_OFFSET,
+                             0.05,
+                             gz * TILE_SIZE - BOARD_OFFSET
+                         );
+                         const occupied = units.find(u => u.gx === gx && u.gz === gz);
+                         cursorMesh.material.color.setHex(occupied ? 0xff0000 : 0x00ff00);
+                    } else {
+                        cursorMesh.visible = false;
+                    }
+                }
+            }
+        }
+
+        function onMouseUp(e) {
+            if (isDragging) {
+                const left = parseFloat(selectionBoxEl.style.left);
+                const top = parseFloat(selectionBoxEl.style.top);
+                const width = parseFloat(selectionBoxEl.style.width);
+                const height = parseFloat(selectionBoxEl.style.height);
+
+                // If Dragged Area is Small -> Treat as Click
+                if (width < 5 && height < 5) {
+                    
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(scene.children, true);
+                    const unitHit = intersects.find(i => i.object.parent && i.object.parent.userData.isUnit);
+                    const target = new THREE.Vector3();
+                    raycaster.ray.intersectPlane(buildPlane, target);
+
+                    if (gameState === STATES.PLAYING && e.button === 0) {
+                        if (unitHit) {
+                            const uid = unitHit.object.parent.userData.unitId;
+                            const unit = units.find(u => u.id === uid);
+                            
+                            if (unit && unit.team === TEAMS.PLAYER) {
+                                if (!e.shiftKey) selectedUnits.clear();
+                                if (selectedUnits.has(uid)) selectedUnits.delete(uid);
+                                else selectedUnits.add(uid);
+                                soundMgr.sfxClick();
+                            }
+                        } else if (target) {
+                            const gx = Math.round((target.x + BOARD_OFFSET) / TILE_SIZE);
+                            const gz = Math.round((target.z + BOARD_OFFSET) / TILE_SIZE);
+                            
+                            if (gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE) {
+                                if (selectedUnits.size > 0) {
+                                    issueMoveCommand(target);
+                                    soundMgr.sfxClick();
+                                } else {
+                                    selectedUnits.clear();
+                                }
+                            } else {
+                                // Clicked outside board -> Deselect
+                                selectedUnits.clear();
+                            }
+                        }
+                    } 
+                    
+                } else {
+                    // Drag Selection
+                    if (!e.shiftKey) selectedUnits.clear();
+                    
+                    let added = false;
+                    units.forEach(unit => {
+                        if (unit.team === TEAMS.PLAYER) {
+                            const screenPos = toScreenPosition(unit.mesh.position, camera);
+                            if (screenPos.x >= left && screenPos.x <= left + width &&
+                                screenPos.y >= top && screenPos.y <= top + height) {
+                                selectedUnits.add(unit.id);
+                                added = true;
+                            }
+                        }
+                    });
+                    if (added) soundMgr.sfxClick();
+                }
+            }
+            isDragging = false;
+            selectionBoxEl.style.display = 'none';
+        }
+
+        function onKeyDown(e) {
+            if (gameState === STATES.SETUP || gameState === STATES.PLAYING) {
+                
+                // Camera controls (Q/E)
+                const k = e.key.toLowerCase();
+                if(k === 'q' || k === 'e') {
+                    keys[k] = true;
+                }
+
+                // Squads 0-9 (No CTRL needed logic)
+                if (e.key >= '0' && e.key <= '9') {
+                    if (selectedUnits.size > 0) {
+                        // Save
+                        squads[e.key] = Array.from(selectedUnits);
+                        showNotification(`Squad ${e.key} saved!`);
+                        soundMgr.sfxClick();
+                    } else {
+                        // Load
+                        if (squads[e.key]) {
+                            selectedUnits.clear();
+                            squads[e.key].forEach(id => {
+                                if (units.find(u => u.id === id)) selectedUnits.add(id);
+                            });
+                            soundMgr.sfxClick();
+                        }
+                    }
+                }
+                
+                if (e.key.toLowerCase() === 'a') {
+                    selectedUnits.clear();
+                    units.forEach(u => {
+                        if (u.team === TEAMS.PLAYER) selectedUnits.add(u.id);
+                    });
+                    soundMgr.sfxClick();
+                }
+            }
+        }
+
+        function isTileFree(gx, gz, excludeId = null) {
+            if (gx < 0 || gx >= GRID_SIZE || gz < 0 || gz >= GRID_SIZE) return false;
+            return !units.some(u => u.id !== excludeId && u.gx === gx && u.gz === gz);
+        }
+
+        function issueMoveCommand(point) {
+            const centerGx = Math.round((point.x + BOARD_OFFSET) / TILE_SIZE);
+            const centerGz = Math.round((point.z + BOARD_OFFSET) / TILE_SIZE);
+            
+            // Spiral search for free tiles
+            const offsets = [[0,0]];
+            let layer = 1;
+            while (offsets.length < selectedUnits.size + 10) { 
+                for (let i = -layer; i <= layer; i++) offsets.push([i, -layer]);
+                for (let i = -layer; i <= layer; i++) offsets.push([i, layer]);
+                for (let i = -layer + 1; i < layer; i++) offsets.push([-layer, i]);
+                for (let i = -layer + 1; i < layer; i++) offsets.push([layer, i]);
+                layer++;
+            }
+
+            let usedOffsets = [];
+
+            selectedUnits.forEach(uid => {
+                const u = units.find(unit => unit.id === uid);
+                if (u) {
+                    u.target = null;
+                    u.state = 'MOVING';
+                    u.isManual = true;
+                    
+                    for (let i = 0; i < offsets.length; i++) {
+                        const off = offsets[i];
+                        const tx = centerGx + off[0];
+                        const tz = centerGz + off[1];
+                        
+                        const key = `${tx},${tz}`;
+                        if (!usedOffsets.includes(key) && isTileFree(tx, tz, u.id)) {
+                            u.moveTarget = new THREE.Vector3(
+                                tx * TILE_SIZE - BOARD_OFFSET,
+                                0,
+                                tz * TILE_SIZE - BOARD_OFFSET
+                            );
+                            usedOffsets.push(key);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
+        function applyStrategy(stratName) {
+            document.getElementById('context-menu').style.display = 'none';
+            selectedUnits.forEach(uid => {
+                const u = units.find(unit => unit.id === uid);
+                if (u) u.strategy = stratName.toUpperCase();
+            });
+            showNotification(`Strategy: ${stratName.toUpperCase()} applied`);
+            soundMgr.sfxClick();
+        }
+
+        function showNotification(msg) {
+            const notif = document.createElement('div');
+            notif.className = 'notification';
+            notif.innerText = msg;
+            document.getElementById('notifications').appendChild(notif);
+            setTimeout(() => notif.remove(), 2000);
+        }
+
+        function toScreenPosition(objPos, camera) {
+            const vector = objPos.clone();
+            const widthHalf = 0.5 * window.innerWidth;
+            const heightHalf = 0.5 * window.innerHeight;
+            vector.project(camera);
+            vector.x = (vector.x * widthHalf) + widthHalf;
+            vector.y = -(vector.y * heightHalf) + heightHalf;
+            return { x: vector.x, y: vector.y };
+        }
+
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.aspect = aspect;
+            camera.updateProjectionMatrix();
+            
+            if (isLowRes) {
+                const h = 240;
+                const w = Math.floor(h * aspect);
+                renderer.setSize(w, h, false);
+            } else {
+                renderer.setSize(window.innerWidth, window.innerHeight, true);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+            
+            if (gameState === STATES.MENU) {
+                const t = Date.now() * 0.0002;
+                camera.position.x = Math.sin(t) * 55;
+                camera.position.z = Math.cos(t) * 55;
+                camera.lookAt(0, 0, 0);
+            } else if (gameState === STATES.PLAYING) {
+                // Camera Rotation Logic (Mirrored Q/E)
+                const rotSpeed = 1.5 * dt;
+                if (keys.q) cameraAngle -= rotSpeed; // Changed from +=
+                if (keys.e) cameraAngle += rotSpeed; // Changed from -=
+                
+                const radius = 50;
+                const target = new THREE.Vector3(0, 0, -5);
+                
+                camera.position.x = target.x + radius * Math.sin(cameraAngle);
+                camera.position.z = target.z + radius * Math.cos(cameraAngle);
+                camera.lookAt(target);
+
+                updateGameLogic(dt);
+            }
+
+            // Collision Avoidance (Soft Push)
+            for(let i=0; i<units.length; i++) {
+                for(let j=i+1; j<units.length; j++) {
+                    const u1 = units[i];
+                    const u2 = units[j];
+                    const dist = u1.mesh.position.distanceTo(u2.mesh.position);
+                    if(dist < TILE_SIZE * 0.8) {
+                        const push = new THREE.Vector3().subVectors(u1.mesh.position, u2.mesh.position).normalize().multiplyScalar(0.05);
+                        if(u1.state !== 'IDLE') u1.mesh.position.add(push);
+                        if(u2.state !== 'IDLE') u2.mesh.position.sub(push);
+                    }
+                }
+            }
+
+            units.forEach(u => u.updateUI());
+            particles = particles.filter(p => p.update(dt));
+            projectiles = projectiles.filter(p => p.update(dt));
+            renderer.render(scene, camera);
+        }
+
+        function applyGridSnap(u, dt) {
+            let gx = Math.round((u.mesh.position.x + BOARD_OFFSET) / TILE_SIZE);
+            let gz = Math.round((u.mesh.position.z + BOARD_OFFSET) / TILE_SIZE);
+
+            if (!isTileFree(gx, gz, u.id)) {
+                const neighbors = [
+                    [0,1], [0,-1], [1,0], [-1,0],
+                    [1,1], [1,-1], [-1,1], [-1,-1]
+                ];
+                let bestDist = Infinity;
+                let bestTile = null;
+
+                for(let off of neighbors) {
+                    let nx = gx + off[0];
+                    let nz = gz + off[1];
+                    if (isTileFree(nx, nz, u.id)) {
+                        const tx = nx * TILE_SIZE - BOARD_OFFSET;
+                        const tz = nz * TILE_SIZE - BOARD_OFFSET;
+                        const d = (u.mesh.position.x - tx)**2 + (u.mesh.position.z - tz)**2;
+                        if(d < bestDist) {
+                            bestDist = d;
+                            bestTile = {x: nx, z: nz};
+                        }
+                    }
+                }
+                if(bestTile) {
+                    gx = bestTile.x;
+                    gz = bestTile.z;
+                }
+            }
+
+            const targetX = gx * TILE_SIZE - BOARD_OFFSET;
+            const targetZ = gz * TILE_SIZE - BOARD_OFFSET;
+            
+            const snapSpeed = 2.0 * dt;
+            u.mesh.position.x += (targetX - u.mesh.position.x) * snapSpeed;
+            u.mesh.position.z += (targetZ - u.mesh.position.z) * snapSpeed;
+            
+            u.gx = gx;
+            u.gz = gz;
+        }
+
+        function updateGameLogic(dt) {
+            const playerAlive = units.filter(u => u.team === TEAMS.PLAYER).length;
+            const enemyAlive = units.filter(u => u.team === TEAMS.ENEMY).length;
+            
+            if (playerAlive === 0 || enemyAlive === 0) {
+                gameState = STATES.ENDED;
+                soundMgr.stopMusic(); 
+                document.getElementById('game-over').style.display = 'block';
+                
+                const header = document.getElementById('game-over-header');
+                if (playerAlive > 0) {
+                    header.innerText = "VICTORY"; 
+                    document.getElementById('winner-text').innerText = "you won!";
+                } else {
+                    header.innerText = "GAME OVER";
+                    document.getElementById('winner-text').innerText = "DEFEAT";
+                }
+                return;
+            }
+
+            aiTimer -= dt;
+            const shouldAIThink = aiTimer <= 0;
+            if (shouldAIThink) aiTimer = 2.5; 
+
+            // PLAYER AI (Auto-Attack)
+            units.forEach(u => {
+                if (u.team === TEAMS.PLAYER && !u.isManual && u.state === 'IDLE') {
+                    let closest = null;
+                    let minDist = 9999;
+                    const scanRange = 6 * TILE_SIZE; 
+
+                    units.forEach(other => {
+                        if (other.team === TEAMS.ENEMY) {
+                            const d = u.mesh.position.distanceTo(other.mesh.position);
+                            if (d < minDist) {
+                                minDist = d;
+                                closest = other;
+                            }
+                        }
+                    });
+
+                    if (closest && minDist <= scanRange) {
+                        u.target = closest;
+                        u.state = 'ATTACKING';
+                    }
+                }
+            });
+
+            // ENEMY AI 
+            units.forEach(u => {
+                if (u.team === TEAMS.ENEMY) {
+                    if (shouldAIThink) {
+                        if (Math.random() < 0.2) return;
+
+                        let targets = [];
+                        units.forEach(other => {
+                            if (other.team === TEAMS.PLAYER) {
+                                targets.push({ unit: other, dist: u.mesh.position.distanceTo(other.mesh.position) });
+                            }
+                        });
+
+                        targets.sort((a, b) => a.dist - b.dist);
+                        
+                        const aggroRange = 24; 
+                        
+                        if (targets.length > 0 && targets[0].dist <= aggroRange) {
+                            let targetUnit = targets[0].unit;
+                            if (Math.random() < 0.3 && targets.length > 1) {
+                                const idx = Math.floor(Math.random() * Math.min(3, targets.length));
+                                targetUnit = targets[idx].unit;
+                            }
+
+                            u.target = targetUnit;
+                            u.state = 'ATTACKING';
+                        } else {
+                            u.target = null;
+                            u.state = 'GUARD';
+                        }
+                    }
+
+                    if (u.state === 'GUARD') {
+                        if (u.mesh.position.z > 5) { 
+                             const centerPos = new THREE.Vector3(u.mesh.position.x, 0, 0);
+                             const dir = new THREE.Vector3().subVectors(centerPos, u.mesh.position).normalize();
+                             u.mesh.position.add(dir.multiplyScalar(u.stats.speed * 0.5 * dt));
+                             u.mesh.lookAt(u.mesh.position.x, 0, 0);
+                             u.gx = Math.round((u.mesh.position.x + BOARD_OFFSET) / TILE_SIZE);
+                             u.gz = Math.round((u.mesh.position.z + BOARD_OFFSET) / TILE_SIZE);
+                        }
+                    }
+                }
+            });
+
+            units.forEach(u => {
+                if (u.cooldownTimer > 0) u.cooldownTimer -= dt;
+
+                if (u.target && u.target.currentHp <= 0) {
+                    u.target = null;
+                    if (u.isManual) u.isManual = false; 
+                }
+
+                if (u.moveTarget) {
+                    // Priority 1: Manual Move
+                    const speed = u.stats.speed;
+                    const dist = u.mesh.position.distanceTo(u.moveTarget);
+                    const step = speed * dt;
+
+                    if (dist < step) {
+                        u.gx = Math.round((u.moveTarget.x + BOARD_OFFSET) / TILE_SIZE);
+                        u.gz = Math.round((u.moveTarget.z + BOARD_OFFSET) / TILE_SIZE);
+                        u.mesh.position.set(
+                            u.gx * TILE_SIZE - BOARD_OFFSET,
+                            0,
+                            u.gz * TILE_SIZE - BOARD_OFFSET
+                        );
+                        u.moveTarget = null;
+                        u.state = 'IDLE';
+                        u.isManual = false; 
+                    } else {
+                        const dir = new THREE.Vector3().subVectors(u.moveTarget, u.mesh.position).normalize();
+                        u.mesh.position.add(dir.multiplyScalar(step));
+                        u.mesh.lookAt(u.moveTarget.x, u.mesh.position.y, u.moveTarget.z);
+                    }
+                } 
+                else if (u.target) {
+                    // Priority 2: Combat
+                    const dist = u.mesh.position.distanceTo(u.target.mesh.position);
+                    let inRange = false;
+                    if (u.stats.type === 'ranged') {
+                        if (dist <= u.stats.range * TILE_SIZE) inRange = true;
+                    } else { 
+                        if (dist <= u.stats.range * TILE_SIZE) inRange = true;
+                    }
+
+                    if (inRange) {
+                        applyGridSnap(u, dt); // Snap while fighting to avoid messy overlaps
+                        
+                        if (u.cooldownTimer <= 0) {
+                            performAttack(u, u.target);
+                            let cd = u.stats.cooldown;
+                            if (u.team === TEAMS.ENEMY) {
+                                cd *= currentDifficulty.cooldownMult;
+                            }
+                            u.cooldownTimer = cd;
+                        }
+                    } else {
+                        // Move towards enemy
+                        const speed = u.stats.speed * dt;
+                        let dir = new THREE.Vector3().subVectors(u.target.mesh.position, u.mesh.position).normalize();
+                        
+                        // Calculate next step to check for collisions
+                        const nextPos = u.mesh.position.clone().add(dir.clone().multiplyScalar(speed * 10));
+                        const ngx = Math.round((nextPos.x + BOARD_OFFSET) / TILE_SIZE);
+                        const ngz = Math.round((nextPos.z + BOARD_OFFSET) / TILE_SIZE);
+                        
+                        if (!isTileFree(ngx, ngz, u.id)) {
+                             dir.applyAxisAngle(new THREE.Vector3(0,1,0), 0.5); 
+                        }
+
+                        if (u.strategy === 'SURROUND') {
+                             dir.applyAxisAngle(new THREE.Vector3(0,1,0), 0.5);
+                        }
+
+                        u.mesh.position.add(dir.multiplyScalar(speed));
+                        u.mesh.lookAt(u.target.mesh.position.x, u.mesh.position.y, u.target.mesh.position.z);
+                    }
+                } 
+                else {
+                    // Priority 3: Idle
+                    applyGridSnap(u, dt);
+                }
+            });
+        }
+
+        function performAttack(attacker, target) {
+            if (attacker.stats.type === 'ranged') {
+                soundMgr.sfxShoot();
+                const arrow = new Projectile(attacker.mesh.position, target.mesh.position, 'arrow');
+                projectiles.push(arrow);
+                
+                setTimeout(() => {
+                    if (target.currentHp > 0) { 
+                        if (Math.random() < attacker.stats.hitChance) {
+                            const dmg = Math.floor(Math.random() * (attacker.stats.dmg[1] - attacker.stats.dmg[0]) + attacker.stats.dmg[0]);
+                            target.takeDamage(dmg);
+                        } else {
+                            showNotification("Miss!");
+                        }
+                    }
+                }, 660);
+                
+            } else if (attacker.stats.type === 'melee') {
+                attacker.mesh.position.add(new THREE.Vector3(0,0.5,0));
+                setTimeout(() => attacker.mesh.position.y = 0, 100); 
+
+                target.takeDamage(attacker.stats.dmg);
+            }
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
