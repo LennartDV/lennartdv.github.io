@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Games</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #050505; /* Deep black */
+            color: white;
+        }
+
+        /* Custom Scrollbar to keep it sleek */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050505; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+
+        .card-container {
+            /* The white "spot" lives here in the background/pseudo-element */
+            position: relative;
+            border-radius: 1.5rem; /* xl rounded */
+            background-color: white; 
+            transition: all 0.3s ease;
+        }
+
+        .card-face {
+            /* This is the actual black button */
+            background-color: #050505;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 1.5rem;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 10;
+            transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        /* The Hover Effect */
+        .card-container:hover .card-face {
+            transform: translateY(-12px) translateX(0px);
+            border-color: white;
+        }
+
+        /* Mobile touch active state */
+        .card-container:active .card-face {
+            transform: translateY(-5px);
+        }
+
+        .game-title {
+            font-weight: 300;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center overflow-y-auto overflow-x-hidden pb-20">
+
+    <!-- Title Section -->
+    <header class="w-full flex justify-center mt-20 mb-16 animate-fade-in">
+        <h1 class="text-6xl md:text-8xl font-thin tracking-tight text-white opacity-90">
+            games:
+        </h1>
+    </header>
+
+    <!-- Grid Container -->
+    <main class="w-full max-w-6xl px-6">
+        <div id="game-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
+            <!-- Buttons will be injected here by JavaScript -->
+        </div>
+    </main>
+
+    <script>
+        // ---------------------------------------------------------
+        // CONFIGURATION: ADD YOUR GAMES HERE
+        // ---------------------------------------------------------
+        const gamesList = [
+            {
+                name: "Super Mario Clone",
+                file: "mario.html" 
+            },
+            {
+                name: "Space Invaders",
+                file: "space-invaders/index.html"
+            },
+            {
+                name: "Flappy Bird",
+                file: "flappy.html"
+            },
+            {
+                name: "Dino Run",
+                file: "dino.html"
+            },
+            // To add a new game, copy the block above and change the name/file:
+            // { name: "New Game", file: "newgame.html" },
+        ];
+
+        // ---------------------------------------------------------
+        // RENDER LOGIC
+        // ---------------------------------------------------------
+        const grid = document.getElementById('game-grid');
+
+        gamesList.forEach(game => {
+            // Create the container (holds the white background spot)
+            const container = document.createElement('div');
+            container.className = 'card-container aspect-[4/3] w-full';
+            
+            // Create the link/face (the black part that moves)
+            const link = document.createElement('a');
+            link.href = game.file;
+            link.className = 'card-face p-6 block no-underline text-white';
+            
+            // Content inside the card
+            link.innerHTML = `
+                <div class="w-full">
+                    <h2 class="text-2xl md:text-3xl game-title uppercase">${game.name}</h2>
+                </div>
+                <!-- You can add more details here if you want, like descriptions -->
+            `;
+
+            // Assemble
+            container.appendChild(link);
+            grid.appendChild(container);
+        });
+    </script>
+</body>
+</html>
