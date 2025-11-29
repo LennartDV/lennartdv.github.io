@@ -10,8 +10,10 @@
         
         body {
             font-family: 'VT323', monospace;
-            background-color: #2d5a27;
-            background-image: radial-gradient(circle, transparent 20%, #000 130%);
+            background-color: #1a2f16;
+            background-image: 
+                radial-gradient(circle at center, transparent 0%, #000 100%),
+                repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(0,0,0,0.1) 3px);
             overflow: hidden;
             user-select: none;
             image-rendering: pixelated; 
@@ -57,9 +59,16 @@
         }
         .animate-flash { animation: flash-red 1s infinite; }
 
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(-5deg); }
+            50% { transform: translateY(-10px) rotate(5deg); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+
         .pixel-btn {
             box-shadow: 0 4px 0 rgba(0,0,0,0.5);
             transition: all 0.1s;
+            border-width: 2px;
         }
         .pixel-btn:active {
             box-shadow: 0 0 0;
@@ -69,9 +78,25 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Modal Transitions */
         .modal-enter { opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .modal-enter.active { opacity: 1; pointer-events: auto; }
+
+        /* Start Screen Specifics */
+        .retro-box {
+            background: #292524; /* stone-800 */
+            border: 4px solid #44403c; /* stone-700 */
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.5);
+        }
+        .retro-input {
+            background: #1c1917; /* stone-900 */
+            border: 2px solid #57534e; /* stone-600 */
+            color: #fbbf24; /* yellow-400 */
+            text-shadow: 1px 1px 0 #000;
+        }
+        .retro-input:focus {
+            border-color: #fbbf24;
+            outline: none;
+        }
     </style>
 </head>
 <body class="h-screen w-screen text-white">
@@ -87,7 +112,7 @@
 
     <!-- Rules Modal -->
     <div id="rules-modal" class="fixed inset-0 bg-black/90 z-[100] modal-enter flex items-center justify-center p-4">
-        <div class="bg-stone-800 border-4 border-stone-500 p-6 rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl">
+        <div class="retro-box p-6 rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto relative">
             <button id="close-rules" class="absolute top-4 right-4 text-gray-400 hover:text-white text-3xl">✕</button>
             <h2 class="text-5xl text-yellow-400 mb-6 text-center underline decoration-2 underline-offset-4">GAME RULES</h2>
             
@@ -224,24 +249,60 @@
             
             if (!currentUser) return;
 
-            // LOBBY
+            // --- LOBBY SCREEN OVERHAUL ---
             if (!currentGameId) {
                 appDiv.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full bg-stone-900 text-white px-4">
-                        <h1 class="text-7xl text-yellow-400 mb-2 font-bold drop-shadow-md text-center">EIGHTS!</h1>
-                        <p class="text-stone-400 mb-8 text-xl text-center">Pixel Multiplayer Card Game</p>
+                    <div class="flex flex-col items-center justify-center h-full relative px-4">
+                        <!-- Floating Background Decorations -->
+                        <div class="absolute top-10 left-10 opacity-30 animate-float" style="animation-delay: 0s;">
+                            <div class="card-sprite" style="${getCardStyle({suit:'H', rank:'A'})}"></div>
+                        </div>
+                        <div class="absolute bottom-10 right-10 opacity-30 animate-float" style="animation-delay: 1.5s;">
+                            <div class="card-sprite" style="${getCardStyle({suit:'S', rank:'8'})}"></div>
+                        </div>
+
+                        <!-- Main Title -->
+                        <div class="mb-8 text-center z-10">
+                            <h1 class="text-8xl md:text-9xl text-yellow-400 font-bold drop-shadow-[4px_4px_0_rgba(0,0,0,1)] tracking-widest animate-bounce-pixel">
+                                EIGHTS!
+                            </h1>
+                            <p class="text-stone-400 text-2xl tracking-widest mt-2 bg-black/40 px-4 py-1 rounded">MULTIPLAYER PIXEL CARD GAME</p>
+                        </div>
                         
-                        <div class="bg-stone-800 p-8 rounded border-4 border-stone-600 shadow-xl w-full max-w-sm text-center">
-                            <div class="mb-6 text-left">
-                                <label class="text-stone-400 text-sm block mb-1">YOUR NAME</label>
-                                <input id="input-name" type="text" value="Player" class="w-full bg-stone-900 border-2 border-stone-600 p-2 text-xl text-center text-white rounded focus:border-yellow-400 outline-none">
+                        <!-- Lobby Box -->
+                        <div class="retro-box p-8 w-full max-w-md z-10 relative">
+                            <!-- Input Group -->
+                            <div class="mb-8">
+                                <label class="text-stone-400 text-sm block mb-2 tracking-wide">ENTER YOUR NAME</label>
+                                <input id="input-name" type="text" value="Player" 
+                                    class="retro-input w-full p-3 text-2xl text-center rounded shadow-inner" maxlength="12">
                             </div>
-                            <button id="btn-create" class="w-full bg-red-600 hover:bg-red-500 text-white text-2xl py-3 mb-6 rounded pixel-btn">CREATE GAME</button>
-                            <div class="flex gap-2 mb-2">
-                                <input id="input-code" type="text" placeholder="CODE" class="w-2/3 bg-stone-900 border-2 border-stone-600 p-2 text-xl text-center uppercase outline-none focus:border-yellow-400 text-white rounded">
-                                <button id="btn-join" class="w-1/3 bg-blue-600 hover:bg-blue-500 text-white text-xl rounded pixel-btn">JOIN</button>
+
+                            <!-- Action Buttons -->
+                            <div class="space-y-4">
+                                <button id="btn-create" 
+                                    class="w-full bg-red-600 hover:bg-red-500 text-white text-2xl py-4 rounded pixel-btn border-red-800 relative overflow-hidden group">
+                                    <span class="relative z-10">CREATE NEW GAME</span>
+                                    <div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+                                </button>
+                                
+                                <div class="relative py-2 flex items-center">
+                                    <div class="flex-grow border-t border-stone-600"></div>
+                                    <span class="flex-shrink-0 mx-4 text-stone-500 text-sm">OR JOIN EXISTING</span>
+                                    <div class="flex-grow border-t border-stone-600"></div>
+                                </div>
+
+                                <div class="flex gap-2">
+                                    <input id="input-code" type="text" placeholder="CODE" 
+                                        class="retro-input w-2/3 p-3 text-2xl text-center uppercase rounded shadow-inner">
+                                    <button id="btn-join" 
+                                        class="w-1/3 bg-blue-600 hover:bg-blue-500 text-white text-xl rounded pixel-btn border-blue-800">
+                                        JOIN
+                                    </button>
+                                </div>
                             </div>
-                            <div id="error-msg" class="text-red-500 h-6 text-sm"></div>
+                            
+                            <div id="error-msg" class="text-red-500 h-6 text-sm text-center mt-2 font-bold"></div>
                         </div>
                     </div>
                 `;
@@ -269,7 +330,9 @@
                         <p class="text-4xl mb-12 text-white">
                             ${isWinner ? 'You won the game!' : `${gameState.winner} won the game!`}
                         </p>
-                        <button onclick="location.reload()" class="bg-white text-black px-8 py-4 text-3xl rounded pixel-btn hover:bg-gray-200">PLAY AGAIN</button>
+                        <button onclick="location.reload()" class="bg-white text-black px-8 py-4 text-3xl rounded pixel-btn hover:bg-gray-200 border-4 border-gray-400">
+                            PLAY AGAIN
+                        </button>
                     </div>
                 `;
                 return;
@@ -292,7 +355,7 @@
             
             // Rules Toggle Button
             html += `
-                <button id="rules-btn" class="absolute top-4 right-4 bg-stone-700 hover:bg-stone-600 text-white border-2 border-stone-400 rounded px-3 py-1 z-50 pixel-btn">
+                <button id="rules-btn" class="absolute top-4 right-4 bg-stone-700 hover:bg-stone-600 text-white border-2 border-stone-400 rounded px-3 py-1 z-50 pixel-btn shadow-lg">
                     RULES (i)
                 </button>
             `;
@@ -374,7 +437,7 @@
                 </div>
             `;
 
-            // My Hand
+            // My Hand (Scrollable & Padded FIX)
             const myHand = gameState.players[myUid].hand;
             const spaceClass = myHand.length > 6 ? '-space-x-8 sm:-space-x-12' : '-space-x-4 sm:-space-x-8';
             
@@ -389,7 +452,8 @@
                         ${msg}
                     </div>` : ''}
                     
-                    <div class="w-full overflow-x-auto hide-scrollbar px-4 pb-8 pt-12 pointer-events-auto">
+                    <!-- Increased pt-24 here to ensure hover doesn't clip -->
+                    <div class="w-full overflow-x-auto hide-scrollbar px-4 pb-8 pt-24 pointer-events-auto">
                         <div class="flex justify-center min-w-min mx-auto ${spaceClass}">
                             ${myHand.map((card, idx) => {
                                 const playable = isMyTurn && canPlay(card);
@@ -414,7 +478,7 @@
                             <h2 class="text-4xl text-white mb-4">WAITING FOR PLAYERS</h2>
                             <div class="text-stone-400 mb-8 text-xl">CODE: <span class="text-yellow-400 text-3xl select-all">${currentGameId}</span></div>
                             ${gameState.host === myUid ? 
-                                `<button onclick="window.handleStartGame()" class="bg-green-600 hover:bg-green-500 text-white text-2xl px-8 py-3 rounded pixel-btn w-full sm:w-auto">START GAME</button>` : 
+                                `<button onclick="window.handleStartGame()" class="bg-green-600 hover:bg-green-500 text-white text-2xl px-8 py-3 rounded pixel-btn w-full sm:w-auto border-4 border-green-800">START GAME</button>` : 
                                 `<div class="text-white animate-pulse text-xl">Waiting for host...</div>`
                             }
                         </div>
@@ -428,7 +492,6 @@
                 if (deckEl) deckEl.onclick = drawCards;
             }
             
-            // Re-bind rules button since HTML was overwritten
             document.getElementById('rules-btn').onclick = () => toggleRules(true);
         };
 
@@ -436,13 +499,13 @@
             const modalDiv = document.getElementById('modals');
             modalDiv.innerHTML = `
                 <div class="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4">
-                    <div class="bg-white p-6 rounded border-4 border-black text-center shadow-2xl w-full max-w-sm">
-                        <h3 class="text-2xl font-bold mb-4 text-black">CHOOSE SUIT</h3>
+                    <div class="retro-box p-6 rounded text-center w-full max-w-sm">
+                        <h3 class="text-2xl font-bold mb-4 text-white">CHOOSE SUIT</h3>
                         <div class="grid grid-cols-2 gap-4">
                             ${SUITS.map(s => {
                                 const isRed = s === 'H' || s === 'D';
                                 const icon = { 'H':'♥', 'D':'♦', 'C':'♣', 'S':'♠' }[s];
-                                return `<button onclick="window.handleSuitSelect('${s}')" class="h-20 text-5xl border-2 border-gray-300 hover:bg-gray-200 rounded flex items-center justify-center ${isRed ? 'text-red-600' : 'text-black'}">${icon}</button>`;
+                                return `<button onclick="window.handleSuitSelect('${s}')" class="h-20 text-5xl bg-stone-900 border-2 border-stone-600 hover:border-yellow-400 rounded flex items-center justify-center ${isRed ? 'text-red-500' : 'text-stone-200'}">${icon}</button>`;
                             }).join('')}
                         </div>
                     </div>
@@ -534,25 +597,21 @@
 
             // 2. Attack Logic
             if (attackValue > 0) {
-                // Ace Attack: Must play another Ace
                 if (aceCounterActive) {
-                    return card.rank === 'A'; // Joker CANNOT defend Ace (per user request)
+                    return card.rank === 'A'; 
                 }
-                // 2 Attack: Can play 2, Joker, or matching Ace
                 if (top.rank === '2') {
                     if (card.rank === '2') return true;
                     if (card.suit === 'Joker') return true;
                     if (card.rank === 'A' && card.suit === top.suit) return true;
                     return false;
                 }
-                // Joker Attack: Can play 2, Joker, Ace (Assuming standard defence)
                 return card.rank === '2' || card.suit === 'Joker' || card.rank === 'A';
             }
 
             // 3. Normal Logic
-            if (card.suit === 'Joker') return true; // Exception: Joker plays on anything
+            if (card.suit === 'Joker') return true; 
             if (card.rank === 'J') return true;
-            // Strict Rule: Must match Suit or Rank (Joker handled above)
             if (card.suit === effectiveSuit) return true;
             if (card.rank === top.rank) return true;
             if (top.suit === 'Joker' && !activeSuit) return true;
