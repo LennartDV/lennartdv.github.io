@@ -96,6 +96,14 @@
             border-color: #fbbf24;
             outline: none;
         }
+        
+        /* Disabled button state */
+        .btn-disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+            filter: grayscale(1);
+        }
     </style>
 </head>
 <body class="h-screen w-screen text-white">
@@ -130,9 +138,9 @@
                     <h3 class="text-white text-2xl mb-2">BASICS</h3>
                     <ul class="space-y-2 list-disc pl-5">
                         <li>Match <span class="text-white">SUIT</span> or <span class="text-white">RANK</span>.</li>
+                        <li><span class="text-yellow-400">Drawing</span>: If you draw (even from attack), your turn continues! You may play a card or PASS.</li>
                         <li><span class="text-yellow-400">Joker</span> is the exception: Play on anything (except attacking Ace).</li>
                         <li><span class="text-yellow-400">Ace Defense</span>: Can only counter a 2 if Suit matches.</li>
-                        <li><span class="text-yellow-400">Ace Attack</span>: If attacked by Ace, you MUST play another Ace or draw. Joker cannot defend Ace.</li>
                     </ul>
                 </div>
             </div>
@@ -191,12 +199,14 @@
         
         const SUITS = ['H', 'C', 'D', 'S']; 
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        const BOT_NAMES = ["Robby", "Pixel", "Glitch", "Bit", "Chip", "Data", "Spark", "Nano", "Cyber"];
 
         let currentUser = null;
         let currentGameId = null;
         let gameState = null;
         let unsubscribeGame = null;
         let pendingCard = null;
+        let botTurnTimeout = null;
 
         const shuffle = (array) => {
             let currentIndex = array.length, randomIndex;
@@ -277,10 +287,14 @@
 
                             <!-- Action Buttons -->
                             <div class="space-y-4">
+                                <button id="btn-sp" 
+                                    class="w-full bg-yellow-600 hover:bg-yellow-500 text-white text-2xl py-4 rounded pixel-btn border-yellow-800 relative overflow-hidden group">
+                                    <span class="relative z-10">SINGLE PLAYER</span>
+                                </button>
+
                                 <button id="btn-create" 
                                     class="w-full bg-red-600 hover:bg-red-500 text-white text-2xl py-4 rounded pixel-btn border-red-800 relative overflow-hidden group">
-                                    <span class="relative z-10">CREATE NEW GAME</span>
-                                    <div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+                                    <span class="relative z-10">CREATE MULTIPLAYER</span>
                                 </button>
                                 
                                 <div class="relative py-2 flex items-center">
@@ -303,6 +317,7 @@
                         </div>
                     </div>
                 `;
+                document.getElementById('btn-sp').onclick = startSinglePlayer;
                 document.getElementById('btn-create').onclick = createGame;
                 document.getElementById('btn-join').onclick = () => {
                     const code = document.getElementById('input-code').value;
@@ -376,7 +391,8 @@
                 const p = gameState.players[uid];
                 const activeClass = (gameState.turnIndex === idx) ? 'text-green-400 font-bold' : 'text-stone-500';
                 const indicator = (gameState.turnIndex === idx) ? '> ' : '';
-                playersHtml += `<div class="${activeClass} truncate">${indicator}${p.name} (${p.hand.length})</div>`;
+                const botBadge = p.isBot ? '[BOT] ' : '';
+                playersHtml += `<div class="${activeClass} truncate">${indicator}${botBadge}${p.name} (${p.hand.length})</div>`;
             });
             
             html += `
@@ -414,13 +430,15 @@
                                 `<div style="width:${CARD_WIDTH*SCALE}px; height:${CARD_HEIGHT*SCALE}px" class="border-2 border-dashed border-white/30 rounded flex items-center justify-center text-white/30 text-xs">EMPTY</div>`
                             }
                             
-                            ${gameState.attackValue > 0 ? 
-                                `<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white font-bold px-3 py-1 rounded text-lg animate-bounce-pixel whitespace-nowrap border-2 border-white shadow-lg z-20">DRAW ${gameState.attackValue}</div>` : ''
-                            }
-                            
-                            ${gameState.skipStack > 0 ? 
-                                `<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-purple-600 text-white font-bold px-3 py-1 rounded text-lg animate-bounce-pixel whitespace-nowrap border-2 border-white shadow-lg z-20">SKIP! (${gameState.skipStack})</div>` : ''
-                            }
+                            ${/* Deck text Logic: If pass available, show PASS, else DRAW X */ ''}
+                            <div class="absolute -top-10 left-1/2 -translate-x-1/2 ${isMyTurn ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-white'} font-bold px-3 py-1 rounded text-lg animate-bounce-pixel whitespace-nowrap border-2 border-white shadow-lg z-20">
+                                ${
+                                    isMyTurn && gameState.hasDrawn ? 'PASS' : 
+                                    gameState.attackValue > 0 ? `DRAW ${gameState.attackValue}` : 
+                                    gameState.skipStack > 0 ? `SKIP` :
+                                    'DRAW'
+                                }
+                            </div>
                         </div>
                         <div class="relative">
                             <div class="card-sprite" style="${getCardStyle(topCard)}"></div>
@@ -441,7 +459,8 @@
             let msg = "YOUR TURN";
             if (gameState.mustPlayAgain) msg = "PLAY AGAIN (7)";
             if (gameState.skipStack > 0) msg = "COUNTER OR SKIP";
-            if (gameState.attackValue > 0) msg = `DEFEND OR DRAW ${gameState.attackValue}`;
+            if (gameState.attackValue > 0 && !gameState.hasDrawn) msg = `DEFEND OR DRAW ${gameState.attackValue}`;
+            if (gameState.hasDrawn) msg = "PLAY OR PASS";
 
             html += `
                 <div class="absolute bottom-0 w-full z-30 flex flex-col items-center pointer-events-none">
@@ -449,7 +468,6 @@
                         ${msg}
                     </div>` : ''}
                     
-                    <!-- Increased pt-24 here to ensure hover doesn't clip -->
                     <div class="w-full overflow-x-auto hide-scrollbar px-4 pb-8 pt-24 pointer-events-auto">
                         <div class="flex justify-center min-w-min mx-auto ${spaceClass}">
                             ${myHand.map((card, idx) => {
@@ -469,15 +487,30 @@
             `;
 
             if (gameState.status === 'waiting') {
+                const playerCount = gameState.order.length;
+                const isFull = playerCount >= 7;
+                const canStart = playerCount >= 2;
+
                 html += `
                     <div class="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
                         <div class="text-center px-4">
                             <h2 class="text-4xl text-white mb-4">WAITING FOR PLAYERS</h2>
-                            <div class="text-stone-400 mb-8 text-xl">CODE: <span class="text-yellow-400 text-3xl select-all">${currentGameId}</span></div>
-                            ${gameState.host === myUid ? 
-                                `<button onclick="window.handleStartGame()" class="bg-green-600 hover:bg-green-500 text-white text-2xl px-8 py-3 rounded pixel-btn w-full sm:w-auto border-4 border-green-800">START GAME</button>` : 
-                                `<div class="text-white animate-pulse text-xl">Waiting for host...</div>`
-                            }
+                            <div class="text-stone-400 text-xl mb-2">CODE: <span class="text-yellow-400 text-3xl select-all">${currentGameId}</span></div>
+                            <div class="text-stone-400 mb-8 text-xl">PLAYERS: <span class="text-white">${playerCount}/7</span></div>
+                            
+                            <div class="flex flex-col gap-4 items-center">
+                                ${gameState.host === myUid ? `
+                                    <button onclick="window.addBot()" class="${isFull ? 'bg-gray-600 border-gray-700 btn-disabled' : 'bg-purple-600 hover:bg-purple-500 border-purple-800'} text-white text-xl px-6 py-2 rounded pixel-btn border-4 mb-2 transition-colors">
+                                        ADD BOT (+1)
+                                    </button>
+                                    <button onclick="window.handleStartGame()" class="${canStart ? 'bg-green-600 hover:bg-green-500 border-green-800' : 'bg-gray-600 border-gray-700 btn-disabled'} text-white text-2xl px-8 py-3 rounded pixel-btn w-full sm:w-auto border-4 transition-colors">
+                                        START GAME
+                                    </button>
+                                    ${!canStart ? '<p class="text-red-400 text-sm animate-pulse">Need at least 2 players</p>' : ''}
+                                ` : `
+                                    <div class="text-white animate-pulse text-xl">Waiting for host...</div>
+                                `}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -511,6 +544,20 @@
         };
 
         // --- Logic ---
+        
+        const startSinglePlayer = async () => {
+            if (!currentUser) return;
+            await createGame();
+            setTimeout(async () => {
+               if(currentGameId) {
+                   await addBot();
+                   await addBot();
+                   await addBot();
+                   await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), { status: 'playing' });
+               }
+            }, 1000);
+        };
+
         const createGame = async () => {
             if (!currentUser) return;
             const name = document.getElementById('input-name').value || "Player";
@@ -520,7 +567,7 @@
             const startCard = deck.shift();
 
             const initialState = {
-                players: { [currentUser.uid]: { name: name, hand: p1Hand, id: currentUser.uid } },
+                players: { [currentUser.uid]: { name: name, hand: p1Hand, id: currentUser.uid, isBot: false } },
                 order: [currentUser.uid],
                 deck,
                 discard: [startCard],
@@ -530,6 +577,7 @@
                 skipStack: 0, 
                 aceCounterActive: false,
                 mustPlayAgain: false,
+                hasDrawn: false, // NEW
                 activeSuit: null,
                 status: 'waiting',
                 host: currentUser.uid,
@@ -565,11 +613,17 @@
                         if (errEl) errEl.innerText = "Game already started";
                         return;
                     }
+                    if (data.order.length >= 7) {
+                        const errEl = document.getElementById('error-msg');
+                        if (errEl) errEl.innerText = "Game is full (Max 7)";
+                        return;
+                    }
+
                     const deck = [...data.deck];
                     const hand = deck.splice(0, 7);
                     const newOrder = [...data.order, currentUser.uid];
                     await updateDoc(gameRef, {
-                        [`players.${currentUser.uid}`]: { name: name, hand, id: currentUser.uid },
+                        [`players.${currentUser.uid}`]: { name: name, hand, id: currentUser.uid, isBot: false },
                         order: newOrder,
                         deck
                     });
@@ -577,26 +631,223 @@
                     gameState = data;
                     currentGameId = code;
                     renderApp();
+                    
+                    if (data.status === 'playing' && currentUser.uid === data.host) {
+                        const currentPlayerId = data.order[data.turnIndex];
+                        const currentPlayer = data.players[currentPlayerId];
+                        
+                        if (currentPlayer && currentPlayer.isBot) {
+                            if (!botTurnTimeout) {
+                                botTurnTimeout = setTimeout(() => {
+                                    handleBotTurn();
+                                    botTurnTimeout = null;
+                                }, 1500);
+                            }
+                        }
+                    }
                 }
             });
         };
 
+        // --- BOT FUNCTIONS ---
+        
+        const addBot = async () => {
+            if (!gameState || !currentGameId) return;
+            if (gameState.order.length >= 7) return;
+            
+            const botId = `bot-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+            const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+            
+            const currentDeck = [...gameState.deck];
+            const hand = currentDeck.splice(0, 7);
+            const newOrder = [...gameState.order, botId];
+            
+            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`);
+            await updateDoc(gameRef, {
+                [`players.${botId}`]: { name: botName, hand, id: botId, isBot: true },
+                order: newOrder,
+                deck: currentDeck
+            });
+        };
+
+        const handleBotTurn = async () => {
+            const currentPlayerId = gameState.order[gameState.turnIndex];
+            const currentPlayer = gameState.players[currentPlayerId];
+            if (!currentPlayer.isBot) return;
+
+            console.log("Bot playing:", currentPlayer.name);
+
+            // If already drawn, check if can play, else pass
+            if (gameState.hasDrawn) {
+                const hand = currentPlayer.hand;
+                const playableCards = hand.filter(c => canPlay(c));
+                
+                if (playableCards.length > 0) {
+                    await playCardAsBot(currentPlayerId, playableCards[0], null); // Simple logic
+                } else {
+                    // Pass (drawCards handles pass logic if hasDrawn is true)
+                    await drawCardsAsBot(currentPlayerId);
+                }
+                return;
+            }
+
+            // Normal start of turn
+            const hand = currentPlayer.hand;
+            const playableCards = hand.filter(c => canPlay(c));
+
+            if (playableCards.length === 0) {
+                // Must Draw (or skip if skipStack active, handled in draw)
+                await drawCardsAsBot(currentPlayerId);
+                return;
+            }
+            
+            let chosenCard = playableCards[0];
+            const actionCard = playableCards.find(c => ['2','7','8','A'].includes(c.rank) || c.suit === 'Joker');
+            if (actionCard) chosenCard = actionCard;
+
+            let suitToDeclare = null;
+            if (chosenCard.rank === 'J') {
+                const counts = { 'H':0, 'C':0, 'D':0, 'S':0 };
+                hand.forEach(c => { if(SUITS.includes(c.suit)) counts[c.suit]++; });
+                suitToDeclare = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+            }
+
+            await playCardAsBot(currentPlayerId, chosenCard, suitToDeclare);
+        };
+
+        const playCardAsBot = async (botId, card, declaredSuit) => {
+            const { order, turnIndex, discard, players, direction, attackValue, skipStack } = gameState;
+            const myHand = players[botId].hand.filter(c => c.id !== card.id);
+            const nextDiscard = [...discard, card];
+
+            let nextTurn = turnIndex;
+            let nextDir = direction;
+            let nextAttack = attackValue;
+            let nextSkipStack = skipStack;
+            let nextAceLock = false;
+            let nextMustPlayAgain = false;
+
+            const is2 = card.rank === '2';
+            const isJoker = card.suit === 'Joker';
+            const isAce = card.rank === 'A';
+            const is7 = card.rank === '7';
+            const is8 = card.rank === '8';
+
+            if (isAce) nextDir = direction * -1;
+
+            if (attackValue > 0) {
+                if (is2) { nextAttack += 2; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (isJoker) { nextAttack += 5; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (isAce) { nextAceLock = true; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+            } else if (skipStack > 0) {
+                if (is8) { nextSkipStack = 1; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+            } else {
+                if (is2) { nextAttack = 2; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (isJoker) { nextAttack = 5; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (is7) { nextMustPlayAgain = true; nextTurn = turnIndex; }
+                else if (is8) { nextSkipStack = 1; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else { nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+            }
+
+            let status = gameState.status;
+            let winner = null;
+            let winnerId = null;
+            if (myHand.length === 0) {
+                status = 'finished';
+                winner = players[botId].name;
+                winnerId = botId;
+            }
+
+            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`);
+            await updateDoc(gameRef, {
+                [`players.${botId}.hand`]: myHand,
+                discard: nextDiscard,
+                turnIndex: nextTurn,
+                direction: nextDir,
+                attackValue: nextAttack,
+                skipStack: nextSkipStack,
+                aceCounterActive: nextAceLock,
+                mustPlayAgain: nextMustPlayAgain,
+                hasDrawn: false, // Reset on play
+                activeSuit: declaredSuit,
+                status,
+                winner,
+                winnerId
+            });
+        };
+
+        const drawCardsAsBot = async (botId) => {
+            const { deck, discard, players, turnIndex, order, direction, attackValue, skipStack, hasDrawn } = gameState;
+            
+            // 1. Skip Logic (Lose turn)
+            if (skipStack > 0) {
+                const nextTurn = (turnIndex + direction + order.length) % order.length;
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), {
+                    skipStack: 0,
+                    turnIndex: nextTurn,
+                    hasDrawn: false
+                });
+                return;
+            }
+
+            // 2. Pass Logic (If already drawn)
+            if (hasDrawn) {
+                const nextTurn = (turnIndex + direction + order.length) % order.length;
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), {
+                    hasDrawn: false,
+                    turnIndex: nextTurn
+                });
+                return;
+            }
+
+            // 3. Draw Logic
+            let currentDeck = [...deck];
+            let currentDiscard = [...discard];
+
+            if (currentDeck.length === 0) {
+                if (currentDiscard.length <= 1) return;
+                const top = currentDiscard.pop();
+                currentDeck = shuffle(currentDiscard);
+                currentDiscard = [top];
+            }
+
+            const count = attackValue > 0 ? attackValue : 1;
+            const drawn = [];
+            for(let i=0; i<count; i++){
+                if(currentDeck.length > 0) drawn.push(currentDeck.shift());
+            }
+
+            const myHand = [...players[botId].hand, ...drawn];
+            
+            // STAY ON TURN after drawing
+            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`);
+            await updateDoc(gameRef, {
+                deck: currentDeck,
+                discard: currentDiscard,
+                [`players.${botId}.hand`]: myHand,
+                attackValue: 0,
+                hasDrawn: true, // Mark as drawn
+                aceCounterActive: false,
+                mustPlayAgain: false,
+                activeSuit: null
+            });
+        };
+
+        // --- End Bot Functions ---
+
         const canPlay = (card) => {
             if (!gameState || gameState.status !== 'playing') return false;
             const { order, turnIndex, discard, attackValue, skipStack, aceCounterActive, activeSuit } = gameState;
-            if (order[turnIndex] !== currentUser.uid) return false;
-
+            
             const top = discard[discard.length - 1];
             const effectiveSuit = activeSuit || top.suit;
 
-            // 1. Skip Stack
             if (skipStack > 0) return card.rank === '8';
 
-            // 2. Attack Logic
             if (attackValue > 0) {
-                if (aceCounterActive) {
-                    return card.rank === 'A'; 
-                }
+                if (gameState.hasDrawn) return true; // Rule: if you took penalty, you can play anything legal (no need to counter)
+                
+                if (aceCounterActive) return card.rank === 'A'; 
                 if (top.rank === '2') {
                     if (card.rank === '2') return true;
                     if (card.suit === 'Joker') return true;
@@ -606,7 +857,6 @@
                 return card.rank === '2' || card.suit === 'Joker' || card.rank === 'A';
             }
 
-            // 3. Normal Logic
             if (card.suit === 'Joker') return true; 
             if (card.rank === 'J') return true;
             if (card.suit === effectiveSuit) return true;
@@ -617,6 +867,7 @@
         };
 
         const playCard = async (card, declaredSuit = null) => {
+            if (gameState.order[gameState.turnIndex] !== currentUser.uid) return;
             if (!canPlay(card)) return;
 
             if (card.rank === 'J' && !declaredSuit) {
@@ -642,42 +893,21 @@
             const is7 = card.rank === '7';
             const is8 = card.rank === '8';
 
-            // --- Effect Logic ---
             if (isAce) nextDir = direction * -1;
 
-            if (attackValue > 0) {
-                if (is2) {
-                    nextAttack += 2;
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                } else if (isJoker) {
-                    nextAttack += 5;
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                } else if (isAce) {
-                    // Reflection
-                    nextAceLock = true;
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                }
+            if (attackValue > 0 && !gameState.hasDrawn) { // Only counter if we haven't drawn yet
+                if (is2) { nextAttack += 2; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (isJoker) { nextAttack += 5; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (isAce) { nextAceLock = true; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
             } else if (skipStack > 0) {
-                if (is8) {
-                    nextSkipStack = 1; 
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                }
+                if (is8) { nextSkipStack = 1; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
             } else {
-                if (is2) {
-                    nextAttack = 2;
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                } else if (isJoker) {
-                    nextAttack = 5;
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                } else if (is7) {
-                    nextMustPlayAgain = true;
-                    nextTurn = turnIndex;
-                } else if (is8) {
-                    nextSkipStack = 1; 
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                } else {
-                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
-                }
+                // If we drew, attack is already 0, so this block handles normal play after draw too
+                if (is2) { nextAttack = 2; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (isJoker) { nextAttack = 5; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else if (is7) { nextMustPlayAgain = true; nextTurn = turnIndex; }
+                else if (is8) { nextSkipStack = 1; nextTurn = (turnIndex + nextDir + order.length) % order.length; }
+                else { nextTurn = (turnIndex + nextDir + order.length) % order.length; }
             }
 
             let status = gameState.status;
@@ -699,6 +929,7 @@
                 skipStack: nextSkipStack,
                 aceCounterActive: nextAceLock,
                 mustPlayAgain: nextMustPlayAgain,
+                hasDrawn: false, // Reset on play
                 activeSuit: declaredSuit,
                 status,
                 winner,
@@ -707,19 +938,32 @@
         };
 
         const drawCards = async () => {
-            if (!gameState) return;
-            const { deck, discard, players, turnIndex, order, direction, attackValue, skipStack } = gameState;
-            if (order[turnIndex] !== currentUser.uid) return;
+            if (gameState.order[gameState.turnIndex] !== currentUser.uid) return;
+            
+            const { deck, discard, players, turnIndex, order, direction, attackValue, skipStack, hasDrawn } = gameState;
 
+            // 1. Skip logic
             if (skipStack > 0) {
                 const nextTurn = (turnIndex + direction + order.length) % order.length;
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), {
                     skipStack: 0,
+                    turnIndex: nextTurn,
+                    hasDrawn: false
+                });
+                return;
+            }
+
+            // 2. Pass Logic (If already drawn)
+            if (hasDrawn) {
+                const nextTurn = (turnIndex + direction + order.length) % order.length;
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), {
+                    hasDrawn: false,
                     turnIndex: nextTurn
                 });
                 return;
             }
 
+            // 3. Draw Logic
             let currentDeck = [...deck];
             let currentDiscard = [...discard];
 
@@ -737,15 +981,15 @@
             }
 
             const myHand = [...players[currentUser.uid].hand, ...drawn];
-            const nextTurn = (turnIndex + direction + order.length) % order.length;
-
+            // Do NOT advance turn here. User can play now.
+            
             const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`);
             await updateDoc(gameRef, {
                 deck: currentDeck,
                 discard: currentDiscard,
                 players: { ...players, [currentUser.uid]: { ...players[currentUser.uid], hand: myHand } },
-                turnIndex: nextTurn,
-                attackValue: 0,
+                attackValue: 0, // Reset attack since they took cards
+                hasDrawn: true, // Enable pass/play mode
                 aceCounterActive: false,
                 mustPlayAgain: false,
                 activeSuit: null
@@ -753,6 +997,7 @@
         };
 
         window.handleStartGame = async () => {
+            if (gameState.order.length < 2) return;
             if (currentGameId) {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), { status: 'playing' });
             }
@@ -773,6 +1018,8 @@
 
         window.createGame = createGame;
         window.joinGame = joinGame;
+        window.startSinglePlayer = startSinglePlayer;
+        window.addBot = addBot;
 
         // --- Rules Modal Logic ---
         const toggleRules = (show) => {
@@ -784,6 +1031,9 @@
         document.getElementById('close-rules').onclick = () => toggleRules(false);
         
         window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            if (!currentGameId) return;
+
             if (e.key === 'i') {
                 const el = document.getElementById('rules-modal');
                 toggleRules(!el.classList.contains('active'));
