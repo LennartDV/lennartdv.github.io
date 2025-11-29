@@ -51,6 +51,12 @@
         }
         .animate-bounce-pixel { animation: bounce-pixel 1s infinite steps(4); }
 
+        @keyframes flash-red {
+            0%, 100% { color: #ef4444; text-shadow: 2px 2px 0 #000; }
+            50% { color: #fee2e2; text-shadow: 0 0 10px #ef4444; }
+        }
+        .animate-flash { animation: flash-red 1s infinite; }
+
         .pixel-btn {
             box-shadow: 0 4px 0 rgba(0,0,0,0.5);
             transition: all 0.1s;
@@ -62,6 +68,10 @@
         
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Modal Transitions */
+        .modal-enter { opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+        .modal-enter.active { opacity: 1; pointer-events: auto; }
     </style>
 </head>
 <body class="h-screen w-screen text-white">
@@ -71,6 +81,40 @@
             <div>LOADING...</div>
             <div id="debug-info" class="text-sm text-gray-400 mt-4 font-sans text-center max-w-md leading-relaxed">
                 Initializing App...
+            </div>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="fixed inset-0 bg-black/90 z-[100] modal-enter flex items-center justify-center p-4">
+        <div class="bg-stone-800 border-4 border-stone-500 p-6 rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl">
+            <button id="close-rules" class="absolute top-4 right-4 text-gray-400 hover:text-white text-3xl">✕</button>
+            <h2 class="text-5xl text-yellow-400 mb-6 text-center underline decoration-2 underline-offset-4">GAME RULES</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xl text-stone-300">
+                <div>
+                    <h3 class="text-white text-2xl mb-2">SPECIAL CARDS</h3>
+                    <ul class="space-y-2 list-disc pl-5">
+                        <li><span class="text-red-400 font-bold">2</span>: Attack (+2 Cards). Can be countered by 2, Joker, or matching Ace.</li>
+                        <li><span class="text-purple-400 font-bold">Joker</span>: Wild Attack (+5 Cards). Play on anything. Can counter 2s.</li>
+                        <li><span class="text-green-400 font-bold">7</span>: Play Again. stick to your turn.</li>
+                        <li><span class="text-blue-400 font-bold">8</span>: Skip Next Player. Counter with 8 to pass it on.</li>
+                        <li><span class="text-yellow-400 font-bold">Ace</span>: Reverse Direction. Reflects attacks if used to counter.</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-white text-2xl mb-2">BASICS</h3>
+                    <ul class="space-y-2 list-disc pl-5">
+                        <li>Match <span class="text-white">SUIT</span> or <span class="text-white">RANK</span>.</li>
+                        <li><span class="text-yellow-400">Joker</span> is the exception: Play on anything (except attacking Ace).</li>
+                        <li><span class="text-yellow-400">Ace Defense</span>: Can only counter a 2 if Suit matches.</li>
+                        <li><span class="text-yellow-400">Ace Attack</span>: If attacked by Ace, you MUST play another Ace or draw. Joker cannot defend Ace.</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="mt-8 text-center text-gray-500 text-sm">
+                Press <span class="border border-gray-600 px-1 rounded">ESC</span> or <span class="border border-gray-600 px-1 rounded">i</span> to close
             </div>
         </div>
     </div>
@@ -174,7 +218,7 @@
             return `width: ${CARD_WIDTH * SCALE}px; height: ${CARD_HEIGHT * SCALE}px; background-image: url('${url}');`;
         };
 
-        // --- Rendering ---
+        // --- UI Rendering ---
         const renderApp = () => {
             const appDiv = document.getElementById('app');
             
@@ -192,9 +236,7 @@
                                 <label class="text-stone-400 text-sm block mb-1">YOUR NAME</label>
                                 <input id="input-name" type="text" value="Player" class="w-full bg-stone-900 border-2 border-stone-600 p-2 text-xl text-center text-white rounded focus:border-yellow-400 outline-none">
                             </div>
-
                             <button id="btn-create" class="w-full bg-red-600 hover:bg-red-500 text-white text-2xl py-3 mb-6 rounded pixel-btn">CREATE GAME</button>
-                            
                             <div class="flex gap-2 mb-2">
                                 <input id="input-code" type="text" placeholder="CODE" class="w-2/3 bg-stone-900 border-2 border-stone-600 p-2 text-xl text-center uppercase outline-none focus:border-yellow-400 text-white rounded">
                                 <button id="btn-join" class="w-1/3 bg-blue-600 hover:bg-blue-500 text-white text-xl rounded pixel-btn">JOIN</button>
@@ -237,10 +279,38 @@
             const isMyTurn = gameState.order[gameState.turnIndex] === myUid;
             const topCard = gameState.discard[gameState.discard.length - 1];
 
+            // 1 CARD LEFT DETECTION
+            let oneCardPlayers = [];
+            gameState.order.forEach(uid => {
+                if (gameState.players[uid].hand.length === 1) {
+                    oneCardPlayers.push(gameState.players[uid].name);
+                }
+            });
+
             // MAIN GAME HUD
             let html = '';
             
-            // Player List (Larger)
+            // Rules Toggle Button
+            html += `
+                <button id="rules-btn" class="absolute top-4 right-4 bg-stone-700 hover:bg-stone-600 text-white border-2 border-stone-400 rounded px-3 py-1 z-50 pixel-btn">
+                    RULES (i)
+                </button>
+            `;
+
+            // Last Card Warning
+            if (oneCardPlayers.length > 0) {
+                html += `
+                    <div class="absolute top-1/4 left-1/2 -translate-x-1/2 z-40 text-center pointer-events-none w-full">
+                        ${oneCardPlayers.map(name => `
+                            <div class="text-5xl font-bold animate-flash drop-shadow-lg mb-2">
+                                ${name} HAS 1 CARD!
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Player List
             let playersHtml = '';
             gameState.order.forEach((uid, idx) => {
                 const p = gameState.players[uid];
@@ -304,11 +374,10 @@
                 </div>
             `;
 
-            // My Hand (Scrollable & Padded)
+            // My Hand
             const myHand = gameState.players[myUid].hand;
             const spaceClass = myHand.length > 6 ? '-space-x-8 sm:-space-x-12' : '-space-x-4 sm:-space-x-8';
             
-            // Dynamic Turn Message
             let msg = "YOUR TURN";
             if (gameState.mustPlayAgain) msg = "PLAY AGAIN (7)";
             if (gameState.skipStack > 0) msg = "COUNTER OR SKIP";
@@ -358,6 +427,9 @@
                 const deckEl = document.getElementById('deck-pile');
                 if (deckEl) deckEl.onclick = drawCards;
             }
+            
+            // Re-bind rules button since HTML was overwritten
+            document.getElementById('rules-btn').onclick = () => toggleRules(true);
         };
 
         const renderSuitModal = () => {
@@ -395,7 +467,7 @@
                 turnIndex: 0,
                 direction: 1,
                 attackValue: 0,
-                skipStack: 0, // NEW: For stacking 8s
+                skipStack: 0, 
                 aceCounterActive: false,
                 mustPlayAgain: false,
                 activeSuit: null,
@@ -457,37 +529,30 @@
             const top = discard[discard.length - 1];
             const effectiveSuit = activeSuit || top.suit;
 
-            // 1. Skip Stack Logic (8s)
-            if (skipStack > 0) {
-                // Must play an 8 to counter
-                return card.rank === '8';
-            }
+            // 1. Skip Stack
+            if (skipStack > 0) return card.rank === '8';
 
-            // 2. Attack Logic (2s, Jokers)
+            // 2. Attack Logic
             if (attackValue > 0) {
+                // Ace Attack: Must play another Ace
                 if (aceCounterActive) {
-                    // Counter reflected Ace: ONLY Ace with SAME suit (impossible in single deck but ok for logic) or just matching Ace?
-                    // User said: "ace can only be placed on a 2 if its the same symbol"
-                    // If defending against Ace, you need another Ace.
-                    return card.rank === 'A'; 
+                    return card.rank === 'A'; // Joker CANNOT defend Ace (per user request)
                 }
-                // Defending against 2
+                // 2 Attack: Can play 2, Joker, or matching Ace
                 if (top.rank === '2') {
-                    // Can counter with 2
                     if (card.rank === '2') return true;
-                    // Can counter with Joker
                     if (card.suit === 'Joker') return true;
-                    // Can counter with Ace IF SAME SUIT
                     if (card.rank === 'A' && card.suit === top.suit) return true;
                     return false;
                 }
-                // Defending against Joker
+                // Joker Attack: Can play 2, Joker, Ace (Assuming standard defence)
                 return card.rank === '2' || card.suit === 'Joker' || card.rank === 'A';
             }
 
             // 3. Normal Logic
-            if (card.suit === 'Joker') return true;
+            if (card.suit === 'Joker') return true; // Exception: Joker plays on anything
             if (card.rank === 'J') return true;
+            // Strict Rule: Must match Suit or Rank (Joker handled above)
             if (card.suit === effectiveSuit) return true;
             if (card.rank === top.rank) return true;
             if (top.suit === 'Joker' && !activeSuit) return true;
@@ -522,14 +587,9 @@
             const is8 = card.rank === '8';
 
             // --- Effect Logic ---
-            
-            // Ace Reversal
-            if (isAce) {
-                nextDir = direction * -1;
-            }
+            if (isAce) nextDir = direction * -1;
 
             if (attackValue > 0) {
-                // We are defending
                 if (is2) {
                     nextAttack += 2;
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
@@ -537,19 +597,16 @@
                     nextAttack += 5;
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 } else if (isAce) {
-                    // Reflection (Direction already flipped above)
-                    // Lock Ace (next player must Ace or take)
+                    // Reflection
                     nextAceLock = true;
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 }
             } else if (skipStack > 0) {
-                // We are countering a skip
                 if (is8) {
-                    nextSkipStack = 1; // Just pass the skip, do not increment (No Stacking)
+                    nextSkipStack = 1; 
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 }
             } else {
-                // Normal Play
                 if (is2) {
                     nextAttack = 2;
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
@@ -557,17 +614,16 @@
                     nextAttack = 5;
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 } else if (is7) {
-                    nextMustPlayAgain = true; // Same turn
+                    nextMustPlayAgain = true;
                     nextTurn = turnIndex;
                 } else if (is8) {
-                    nextSkipStack = 1; // Start skip stack
+                    nextSkipStack = 1; 
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 } else {
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 }
             }
 
-            // Win Check
             let status = gameState.status;
             let winner = null;
             let winnerId = null;
@@ -599,10 +655,8 @@
             const { deck, discard, players, turnIndex, order, direction, attackValue, skipStack } = gameState;
             if (order[turnIndex] !== currentUser.uid) return;
 
-            // Handle Skips (If you click deck when skipped, you perform the skip)
             if (skipStack > 0) {
                 const nextTurn = (turnIndex + direction + order.length) % order.length;
-                // Skip resolved, reset stack
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), {
                     skipStack: 0,
                     turnIndex: nextTurn
@@ -610,7 +664,6 @@
                 return;
             }
 
-            // Normal Draw
             let currentDeck = [...deck];
             let currentDiscard = [...discard];
 
@@ -664,6 +717,23 @@
 
         window.createGame = createGame;
         window.joinGame = joinGame;
+
+        // --- Rules Modal Logic ---
+        const toggleRules = (show) => {
+            const el = document.getElementById('rules-modal');
+            if (show) el.classList.add('active');
+            else el.classList.remove('active');
+        };
+
+        document.getElementById('close-rules').onclick = () => toggleRules(false);
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'i') {
+                const el = document.getElementById('rules-modal');
+                toggleRules(!el.classList.contains('active'));
+            }
+            if (e.key === 'Escape') toggleRules(false);
+        });
 
         const initAuth = async () => {
             debugEl.innerText = "Authenticating...";
