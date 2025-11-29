@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eights!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        body {
+            font-family: 'VT323', monospace;
+            background-color: #2d5a27;
+            background-image: radial-gradient(circle, transparent 20%, #000 130%);
+            overflow: hidden;
+            user-select: none;
+            /* Critical for pixel art look */
+            image-rendering: pixelated; 
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .card-sprite {
+            /* Dimensions set in JS */
+            background-repeat: no-repeat;
+            background-size: cover; /* Fit individual texture exactly */
+            border-radius: 2px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            transition: transform 0.2s, z-index 0s;
+            position: relative;
+            background-color: transparent;
+            display: inline-block;
+        }
+
+        /* Only apply hover effects on devices that support hover (Mouse) */
+        @media (hover: hover) {
+            .card-sprite:hover { z-index: 50; }
+            .playable:hover {
+                transform: translateY(-20px);
+                cursor: pointer;
+                box-shadow: 0 0 15px yellow;
+            }
+        }
+
+        /* Active state for touch feedback */
+        .playable:active {
+            transform: translateY(-20px);
+            filter: brightness(1.2);
+        }
+
+        @keyframes bounce-pixel {
+            0%, 100% { transform: translateY(-5px); }
+            50% { transform: translateY(5px); }
+        }
+        .animate-bounce-pixel { animation: bounce-pixel 1s infinite steps(4); }
+
+        .pixel-btn {
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+            transition: all 0.1s;
+        }
+        .pixel-btn:active {
+            box-shadow: 0 0 0;
+            transform: translateY(4px);
+        }
+        
+        /* Hide scrollbar for hand but allow scrolling */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen text-white">
+
+    <div id="app" class="h-full w-full relative">
+        <div class="flex flex-col items-center justify-center h-full text-4xl text-yellow-400">
+            <div>LOADING...</div>
+            <div id="debug-info" class="text-sm text-gray-400 mt-4 font-sans text-center max-w-md leading-relaxed">
+                Initializing App...
+            </div>
+        </div>
+    </div>
+
+    <div id="modals"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const debugEl = document.getElementById('debug-info');
+
+        // --- Configuration ---
+        let firebaseConfig = null;
+
+        if (typeof __firebase_config !== 'undefined') {
+            try {
+                firebaseConfig = JSON.parse(__firebase_config);
+            } catch (e) {
+                console.warn("Environment config parse error", e);
+            }
+        }
+
+        if (!firebaseConfig) {
+            firebaseConfig = {
+                apiKey: "AIzaSyACIe_PHCJ5IBigIsYehuKKs0Jgf9cwTAg",
+                authDomain: "eights-f0553.firebaseapp.com",
+                projectId: "eights-f0553",
+                storageBucket: "eights-f0553.firebasestorage.app",
+                messagingSenderId: "119808107384",
+                appId: "1:119808107384:web:528dd62c5fbd5a0fa1de8d"
+            };
+        }
+
+        if (!firebaseConfig || !firebaseConfig.apiKey) {
+            debugEl.innerText = "Error: Config missing. Please check the code.";
+            throw new Error("Config missing");
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-pesten';
+
+        // --- Constants & Assets ---
+        const CARD_WIDTH = 33;
+        const CARD_HEIGHT = 45;
+        
+        // Responsive Scaling: 2x for Mobile, 3x for Desktop
+        const isMobile = window.innerWidth < 768;
+        const SCALE = isMobile ? 2 : 3; 
+        
+        const SUITS = ['H', 'C', 'D', 'S']; 
+        const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+        // --- State ---
+        let currentUser = null;
+        let currentGameId = null;
+        let gameState = null;
+        let unsubscribeGame = null;
+        let pendingCard = null;
+
+        // --- Helpers ---
+        const shuffle = (array) => {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        };
+
+        const generateDeck = () => {
+            let deck = [];
+            SUITS.forEach(suit => {
+                RANKS.forEach(rank => {
+                    deck.push({ suit, rank, id: `${suit}-${rank}` });
+                });
+            });
+            deck.push({ suit: 'Joker', rank: 'Red', id: 'Joker-Red' });
+            deck.push({ suit: 'Joker', rank: 'Blue', id: 'Joker-Blue' });
+            return shuffle(deck);
+        };
+
+        // --- Image Mapping Logic ---
+        const getCardTextureUrl = (card) => {
+            if (!card) return 'card00.png'; // Back
+
+            const pad = (num) => num.toString().padStart(2, '0');
+            const rankIdx = RANKS.indexOf(card.rank); 
+
+            if (card.suit === 'H') return `card${pad(1 + rankIdx)}.png`;
+            if (card.suit === 'C') return `card${pad(15 + rankIdx)}.png`;
+            if (card.suit === 'D') return `card${pad(29 + rankIdx)}.png`;
+            if (card.suit === 'S') return `card${pad(43 + rankIdx)}.png`;
+            if (card.suit === 'Joker') {
+                if (card.rank === 'Red') return `card28.png`;
+                if (card.rank === 'Blue') return `card42.png`;
+                return `card28.png`;
+            }
+            return 'card00.png';
+        };
+
+        const getCardStyle = (card) => {
+            const url = getCardTextureUrl(card);
+            return `
+                width: ${CARD_WIDTH * SCALE}px;
+                height: ${CARD_HEIGHT * SCALE}px;
+                background-image: url('${url}');
+            `;
+        };
+
+        // --- Rendering ---
+        const renderApp = () => {
+            const appDiv = document.getElementById('app');
+            
+            if (!currentUser) return;
+
+            if (!currentGameId) {
+                appDiv.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full bg-stone-900 text-white px-4">
+                        <h1 class="text-6xl text-yellow-400 mb-2 font-bold drop-shadow-md text-center">EIGHTS!</h1>
+                        <p class="text-stone-400 mb-8 text-center">Pixel Multiplayer Card Game</p>
+                        <div class="bg-stone-800 p-8 rounded border-4 border-stone-600 shadow-xl w-full max-w-sm text-center">
+                            <button id="btn-create" class="w-full bg-red-600 hover:bg-red-500 text-white text-2xl py-2 mb-6 rounded pixel-btn">CREATE GAME</button>
+                            <div class="flex gap-2 mb-2">
+                                <input id="input-code" type="text" placeholder="CODE" class="w-2/3 bg-stone-900 border-2 border-stone-600 p-2 text-xl text-center uppercase outline-none focus:border-yellow-400 text-white rounded">
+                                <button id="btn-join" class="w-1/3 bg-blue-600 hover:bg-blue-500 text-white text-xl rounded pixel-btn">JOIN</button>
+                            </div>
+                            <div id="error-msg" class="text-red-500 h-6 text-sm"></div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('btn-create').onclick = createGame;
+                document.getElementById('btn-join').onclick = () => {
+                    const code = document.getElementById('input-code').value;
+                    if(code) joinGame(code);
+                };
+                return;
+            }
+
+            if (!gameState) {
+                appDiv.innerHTML = `<div class="flex items-center justify-center h-full text-2xl text-yellow-400">Loading Game State...</div>`;
+                return;
+            }
+
+            if (gameState.status === 'finished') {
+                appDiv.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full bg-black z-50 absolute inset-0">
+                        <h1 class="text-6xl text-yellow-500 mb-4 text-center">GAME OVER</h1>
+                        <p class="text-3xl mb-8 text-center">${gameState.winner} WINS!</p>
+                        <button onclick="location.reload()" class="bg-white text-black px-6 py-2 text-2xl rounded pixel-btn">PLAY AGAIN</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const myUid = currentUser.uid;
+            const isMyTurn = gameState.order[gameState.turnIndex] === myUid;
+            const topCard = gameState.discard[gameState.discard.length - 1];
+
+            let html = '';
+            let playersHtml = '';
+            gameState.order.forEach((uid, idx) => {
+                const p = gameState.players[uid];
+                const activeClass = (gameState.turnIndex === idx) ? 'text-green-400 font-bold' : 'text-stone-500';
+                const indicator = (gameState.turnIndex === idx) ? '> ' : '';
+                playersHtml += `<div class="${activeClass} truncate max-w-[150px]">${indicator}${p.name} (${p.hand.length})</div>`;
+            });
+            
+            html += `
+                <div class="absolute top-4 left-4 bg-black/60 p-3 rounded border border-white/10 z-20 text-lg shadow-lg max-w-[50%]">
+                    <div class="text-stone-400 text-xs">ROOM CODE</div>
+                    <div class="text-yellow-400 text-2xl mb-1 tracking-widest leading-none">${currentGameId}</div>
+                    <div class="text-sm space-y-1 mt-2">${playersHtml}</div>
+                </div>
+            `;
+
+            html += `<div class="absolute top-4 w-full flex justify-center z-10 gap-4 pointer-events-none pl-[25%] pr-4">`;
+            gameState.order.forEach(oid => {
+                if (oid === myUid) return;
+                const p = gameState.players[oid];
+                html += `
+                    <div class="flex flex-col items-center">
+                        <div class="bg-black/50 px-2 rounded mb-1 text-xs whitespace-nowrap">${p.name}</div>
+                        <div class="flex -space-x-[15px] sm:-space-x-12 transform scale-75 origin-top justify-center">
+                            ${p.hand.map(() => `<div class="card-sprite" style="${getCardStyle(null)}"></div>`).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+
+            html += `
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div class="flex gap-8 sm:gap-16 transform scale-100 pointer-events-auto items-center">
+                        <div id="deck-pile" class="relative group cursor-pointer ${isMyTurn ? 'hover:scale-105 active:scale-95' : ''} transition-transform">
+                            ${gameState.deck.length > 0 ? 
+                                `<div class="card-sprite absolute top-1 left-1 opacity-50" style="${getCardStyle(null)}"></div>
+                                 <div class="card-sprite" style="${getCardStyle(null)}"></div>` : 
+                                `<div style="width:${CARD_WIDTH*SCALE}px; height:${CARD_HEIGHT*SCALE}px" class="border-2 border-dashed border-white/30 rounded flex items-center justify-center text-white/30 text-xs">EMPTY</div>`
+                            }
+                            ${gameState.attackValue > 0 ? 
+                                `<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-red-600 text-white font-bold px-2 py-1 rounded text-sm animate-bounce-pixel whitespace-nowrap border-2 border-white shadow-lg z-20">DRAW ${gameState.attackValue}</div>` : ''
+                            }
+                        </div>
+                        <div class="relative">
+                            <div class="card-sprite" style="${getCardStyle(topCard)}"></div>
+                            ${gameState.activeSuit ? `
+                                <div class="absolute -top-12 left-1/2 -translate-x-1/2 bg-white w-10 h-10 flex items-center justify-center rounded-full text-3xl border-4 border-yellow-400 shadow-xl ${['H','D'].includes(gameState.activeSuit) ? 'text-red-600' : 'text-black'}">
+                                    ${{'H':'♥','D':'♦','C':'♣','S':'♠'}[gameState.activeSuit]}
+                                </div>` : ''
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const myHand = gameState.players[myUid].hand;
+            // Responsive spacing for hand based on card count
+            const spaceClass = myHand.length > 6 ? '-space-x-8 sm:-space-x-12' : '-space-x-4 sm:-space-x-8';
+            
+            html += `
+                <div class="absolute bottom-0 w-full z-30 pb-4 flex flex-col items-center pointer-events-none">
+                    ${isMyTurn ? `<div class="mb-4 bg-yellow-400 text-black px-4 py-1 rounded font-bold text-xl shadow-lg animate-bounce-pixel border-2 border-white pointer-events-auto cursor-default z-40">
+                        ${gameState.mustPlayAgain ? "PLAY AGAIN (7)" : "YOUR TURN"}
+                    </div>` : ''}
+                    
+                    <div class="w-full overflow-x-auto hide-scrollbar px-4 pointer-events-auto">
+                        <div class="flex justify-center min-w-min mx-auto ${spaceClass} pb-4 pt-4">
+                            ${myHand.map((card, idx) => {
+                                const playable = isMyTurn && canPlay(card);
+                                return `
+                                    <div class="relative transition-transform duration-200 hover:-translate-y-8 ${playable ? 'cursor-pointer' : ''} flex-shrink-0">
+                                        <div class="card-sprite ${playable ? 'playable' : 'brightness-75'}" 
+                                             style="${getCardStyle(card)}"
+                                             onclick="window.handleCardClick('${card.id}')">
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (gameState.status === 'waiting') {
+                html += `
+                    <div class="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
+                        <div class="text-center px-4">
+                            <h2 class="text-3xl text-white mb-4">WAITING FOR PLAYERS</h2>
+                            <div class="text-stone-400 mb-8">CODE: <span class="text-yellow-400 text-2xl select-all">${currentGameId}</span></div>
+                            ${gameState.host === myUid ? 
+                                `<button onclick="window.handleStartGame()" class="bg-green-600 hover:bg-green-500 text-white text-2xl px-8 py-3 rounded pixel-btn w-full sm:w-auto">START GAME</button>` : 
+                                `<div class="text-white animate-pulse">Waiting for host...</div>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+
+            appDiv.innerHTML = html;
+            if (isMyTurn) {
+                const deckEl = document.getElementById('deck-pile');
+                if (deckEl) deckEl.onclick = drawCards;
+            }
+        };
+
+        const renderSuitModal = () => {
+            const modalDiv = document.getElementById('modals');
+            modalDiv.innerHTML = `
+                <div class="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4">
+                    <div class="bg-white p-6 rounded border-4 border-black text-center shadow-2xl w-full max-w-sm">
+                        <h3 class="text-2xl font-bold mb-4 text-black">CHOOSE SUIT</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            ${SUITS.map(s => {
+                                const isRed = s === 'H' || s === 'D';
+                                const icon = { 'H':'♥', 'D':'♦', 'C':'♣', 'S':'♠' }[s];
+                                return `<button onclick="window.handleSuitSelect('${s}')" class="h-20 text-5xl border-2 border-gray-300 hover:bg-gray-200 rounded flex items-center justify-center ${isRed ? 'text-red-600' : 'text-black'}">${icon}</button>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        // --- Logic ---
+        const createGame = async () => {
+            if (!currentUser) return;
+            const newId = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const deck = generateDeck();
+            const p1Hand = deck.splice(0, 7);
+            const startCard = deck.shift();
+
+            const initialState = {
+                players: { [currentUser.uid]: { name: "Player 1", hand: p1Hand, id: currentUser.uid } },
+                order: [currentUser.uid],
+                deck,
+                discard: [startCard],
+                turnIndex: 0,
+                direction: 1,
+                attackValue: 0,
+                aceCounterActive: false,
+                mustPlayAgain: false,
+                activeSuit: null,
+                status: 'waiting',
+                host: currentUser.uid,
+                winner: null
+            };
+
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${newId}`), initialState);
+            joinGame(newId);
+        };
+
+        const joinGame = (code) => {
+            code = code.toUpperCase();
+            if (!currentUser) return;
+
+            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${code}`);
+            
+            if (unsubscribeGame) unsubscribeGame();
+
+            unsubscribeGame = onSnapshot(gameRef, async (snap) => {
+                if (!snap.exists()) {
+                    const errEl = document.getElementById('error-msg');
+                    if (errEl) errEl.innerText = "Game not found";
+                    return;
+                }
+                const data = snap.data();
+
+                if (!data.players[currentUser.uid]) {
+                    if (data.status !== 'waiting') {
+                        const errEl = document.getElementById('error-msg');
+                        if (errEl) errEl.innerText = "Game already started";
+                        return;
+                    }
+                    const deck = [...data.deck];
+                    const hand = deck.splice(0, 7);
+                    const newOrder = [...data.order, currentUser.uid];
+                    await updateDoc(gameRef, {
+                        [`players.${currentUser.uid}`]: { name: `Player ${newOrder.length}`, hand, id: currentUser.uid },
+                        order: newOrder,
+                        deck
+                    });
+                } else {
+                    gameState = data;
+                    currentGameId = code;
+                    renderApp();
+                }
+            });
+        };
+
+        const canPlay = (card) => {
+            if (!gameState || gameState.status !== 'playing') return false;
+            const { order, turnIndex, discard, attackValue, aceCounterActive, activeSuit } = gameState;
+            if (order[turnIndex] !== currentUser.uid) return false;
+
+            const top = discard[discard.length - 1];
+            const effectiveSuit = activeSuit || top.suit;
+
+            if (attackValue > 0) {
+                if (aceCounterActive) return card.rank === 'A';
+                return card.rank === '2' || card.suit === 'Joker' || card.rank === 'A';
+            }
+
+            if (card.suit === 'Joker') return true;
+            if (card.rank === 'J') return true;
+            if (card.suit === effectiveSuit) return true;
+            if (card.rank === top.rank) return true;
+            if (top.suit === 'Joker' && !activeSuit) return true;
+
+            return false;
+        };
+
+        const playCard = async (card, declaredSuit = null) => {
+            if (!canPlay(card)) return;
+
+            if (card.rank === 'J' && !declaredSuit) {
+                pendingCard = card;
+                renderSuitModal();
+                return;
+            }
+
+            const { order, turnIndex, discard, players, direction, attackValue } = gameState;
+            const myHand = players[currentUser.uid].hand.filter(c => c.id !== card.id);
+            const nextDiscard = [...discard, card];
+
+            let nextTurn = turnIndex;
+            let nextDir = direction;
+            let nextAttack = attackValue;
+            let nextAceLock = false;
+            let nextMustPlayAgain = false;
+
+            const is2 = card.rank === '2';
+            const isJoker = card.suit === 'Joker';
+            const isAce = card.rank === 'A';
+            const is7 = card.rank === '7';
+
+            if (attackValue > 0) {
+                if (is2) {
+                    nextAttack += 2;
+                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                } else if (isJoker) {
+                    nextAttack += 5;
+                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                } else if (isAce) {
+                    nextDir = direction * -1;
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
+                    nextAceLock = true;
+                }
+            } else {
+                if (is2) {
+                    nextAttack = 2;
+                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                } else if (isJoker) {
+                    nextAttack = 5;
+                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                } else if (is7) {
+                    nextMustPlayAgain = true;
+                } else {
+                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                }
+            }
+
+            let status = gameState.status;
+            let winner = null;
+            if (myHand.length === 0) {
+                status = 'finished';
+                winner = players[currentUser.uid].name;
+            }
+
+            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`);
+            await updateDoc(gameRef, {
+                players: { ...players, [currentUser.uid]: { ...players[currentUser.uid], hand: myHand } },
+                discard: nextDiscard,
+                turnIndex: nextTurn,
+                direction: nextDir,
+                attackValue: nextAttack,
+                aceCounterActive: nextAceLock,
+                mustPlayAgain: nextMustPlayAgain,
+                activeSuit: declaredSuit,
+                status,
+                winner
+            });
+        };
+
+        const drawCards = async () => {
+            if (!gameState) return;
+            const { deck, discard, players, turnIndex, order, direction, attackValue } = gameState;
+            if (order[turnIndex] !== currentUser.uid) return;
+
+            let currentDeck = [...deck];
+            let currentDiscard = [...discard];
+
+            if (currentDeck.length === 0) {
+                if (currentDiscard.length <= 1) return;
+                const top = currentDiscard.pop();
+                currentDeck = shuffle(currentDiscard);
+                currentDiscard = [top];
+            }
+
+            const count = attackValue > 0 ? attackValue : 1;
+            const drawn = [];
+            for(let i=0; i<count; i++){
+                if(currentDeck.length > 0) drawn.push(currentDeck.shift());
+            }
+
+            const myHand = [...players[currentUser.uid].hand, ...drawn];
+            const nextTurn = (turnIndex + direction + order.length) % order.length;
+
+            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`);
+            await updateDoc(gameRef, {
+                deck: currentDeck,
+                discard: currentDiscard,
+                players: { ...players, [currentUser.uid]: { ...players[currentUser.uid], hand: myHand } },
+                turnIndex: nextTurn,
+                attackValue: 0,
+                aceCounterActive: false,
+                mustPlayAgain: false,
+                activeSuit: null
+            });
+        };
+
+        window.handleStartGame = async () => {
+            if (currentGameId) {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), { status: 'playing' });
+            }
+        };
+
+        window.handleCardClick = (cardId) => {
+            const card = gameState.players[currentUser.uid].hand.find(c => c.id === cardId);
+            if (card) playCard(card);
+        };
+
+        window.handleSuitSelect = (suit) => {
+            if (pendingCard) {
+                playCard(pendingCard, suit);
+                pendingCard = null;
+                document.getElementById('modals').innerHTML = '';
+            }
+        };
+
+        window.createGame = createGame;
+        window.joinGame = joinGame;
+
+        const initAuth = async () => {
+            debugEl.innerText = "Authenticating...";
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                debugEl.innerText = "Ready!";
+            } catch (error) {
+                console.error("Auth Error", error);
+                debugEl.innerHTML = `<span class="text-red-500">Authentication Failed: ${error.message}</span>`;
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                renderApp();
+            }
+        });
+
+        initAuth();
+
+    </script>
+</body>
+</html>
