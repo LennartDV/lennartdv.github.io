@@ -14,7 +14,6 @@
             background-image: radial-gradient(circle, transparent 20%, #000 130%);
             overflow: hidden;
             user-select: none;
-            /* Critical for pixel art look */
             image-rendering: pixelated; 
             image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
@@ -22,9 +21,8 @@
         }
 
         .card-sprite {
-            /* Dimensions set in JS */
             background-repeat: no-repeat;
-            background-size: cover; /* Fit individual texture exactly */
+            background-size: cover;
             border-radius: 2px;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
             transition: transform 0.2s, z-index 0s;
@@ -33,7 +31,6 @@
             display: inline-block;
         }
 
-        /* Only apply hover effects on devices that support hover (Mouse) */
         @media (hover: hover) {
             .card-sprite:hover { z-index: 50; }
             .playable:hover {
@@ -43,7 +40,6 @@
             }
         }
 
-        /* Active state for touch feedback */
         .playable:active {
             transform: translateY(-20px);
             filter: brightness(1.2);
@@ -64,14 +60,8 @@
             transform: translateY(4px);
         }
         
-        /* Hide scrollbar for hand but allow scrolling */
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="h-screen w-screen text-white">
@@ -126,25 +116,20 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-pesten';
 
-        // --- Constants & Assets ---
         const CARD_WIDTH = 33;
         const CARD_HEIGHT = 45;
-        
-        // Responsive Scaling: 2x for Mobile, 3x for Desktop
         const isMobile = window.innerWidth < 768;
         const SCALE = isMobile ? 2 : 3; 
         
         const SUITS = ['H', 'C', 'D', 'S']; 
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
-        // --- State ---
         let currentUser = null;
         let currentGameId = null;
         let gameState = null;
         let unsubscribeGame = null;
         let pendingCard = null;
 
-        // --- Helpers ---
         const shuffle = (array) => {
             let currentIndex = array.length, randomIndex;
             while (currentIndex !== 0) {
@@ -167,10 +152,8 @@
             return shuffle(deck);
         };
 
-        // --- Image Mapping Logic ---
         const getCardTextureUrl = (card) => {
-            if (!card) return 'card00.png'; // Back
-
+            if (!card) return 'card00.png';
             const pad = (num) => num.toString().padStart(2, '0');
             const rankIdx = RANKS.indexOf(card.rank); 
 
@@ -188,11 +171,7 @@
 
         const getCardStyle = (card) => {
             const url = getCardTextureUrl(card);
-            return `
-                width: ${CARD_WIDTH * SCALE}px;
-                height: ${CARD_HEIGHT * SCALE}px;
-                background-image: url('${url}');
-            `;
+            return `width: ${CARD_WIDTH * SCALE}px; height: ${CARD_HEIGHT * SCALE}px; background-image: url('${url}');`;
         };
 
         // --- Rendering ---
@@ -201,13 +180,21 @@
             
             if (!currentUser) return;
 
+            // LOBBY
             if (!currentGameId) {
                 appDiv.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full bg-stone-900 text-white px-4">
-                        <h1 class="text-6xl text-yellow-400 mb-2 font-bold drop-shadow-md text-center">EIGHTS!</h1>
-                        <p class="text-stone-400 mb-8 text-center">Pixel Multiplayer Card Game</p>
+                        <h1 class="text-7xl text-yellow-400 mb-2 font-bold drop-shadow-md text-center">EIGHTS!</h1>
+                        <p class="text-stone-400 mb-8 text-xl text-center">Pixel Multiplayer Card Game</p>
+                        
                         <div class="bg-stone-800 p-8 rounded border-4 border-stone-600 shadow-xl w-full max-w-sm text-center">
-                            <button id="btn-create" class="w-full bg-red-600 hover:bg-red-500 text-white text-2xl py-2 mb-6 rounded pixel-btn">CREATE GAME</button>
+                            <div class="mb-6 text-left">
+                                <label class="text-stone-400 text-sm block mb-1">YOUR NAME</label>
+                                <input id="input-name" type="text" value="Player" class="w-full bg-stone-900 border-2 border-stone-600 p-2 text-xl text-center text-white rounded focus:border-yellow-400 outline-none">
+                            </div>
+
+                            <button id="btn-create" class="w-full bg-red-600 hover:bg-red-500 text-white text-2xl py-3 mb-6 rounded pixel-btn">CREATE GAME</button>
+                            
                             <div class="flex gap-2 mb-2">
                                 <input id="input-code" type="text" placeholder="CODE" class="w-2/3 bg-stone-900 border-2 border-stone-600 p-2 text-xl text-center uppercase outline-none focus:border-yellow-400 text-white rounded">
                                 <button id="btn-join" class="w-1/3 bg-blue-600 hover:bg-blue-500 text-white text-xl rounded pixel-btn">JOIN</button>
@@ -229,12 +216,18 @@
                 return;
             }
 
+            // VICTORY SCREEN
             if (gameState.status === 'finished') {
+                const isWinner = gameState.winnerId === currentUser.uid;
                 appDiv.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full bg-black z-50 absolute inset-0">
-                        <h1 class="text-6xl text-yellow-500 mb-4 text-center">GAME OVER</h1>
-                        <p class="text-3xl mb-8 text-center">${gameState.winner} WINS!</p>
-                        <button onclick="location.reload()" class="bg-white text-black px-6 py-2 text-2xl rounded pixel-btn">PLAY AGAIN</button>
+                    <div class="flex flex-col items-center justify-center h-full bg-black z-50 absolute inset-0 text-center px-4">
+                        <h1 class="text-8xl mb-4 ${isWinner ? 'text-yellow-400 animate-bounce-pixel' : 'text-red-500'}">
+                            ${isWinner ? 'VICTORY!' : 'GAME OVER'}
+                        </h1>
+                        <p class="text-4xl mb-12 text-white">
+                            ${isWinner ? 'You won the game!' : `${gameState.winner} won the game!`}
+                        </p>
+                        <button onclick="location.reload()" class="bg-white text-black px-8 py-4 text-3xl rounded pixel-btn hover:bg-gray-200">PLAY AGAIN</button>
                     </div>
                 `;
                 return;
@@ -244,30 +237,34 @@
             const isMyTurn = gameState.order[gameState.turnIndex] === myUid;
             const topCard = gameState.discard[gameState.discard.length - 1];
 
+            // MAIN GAME HUD
             let html = '';
+            
+            // Player List (Larger)
             let playersHtml = '';
             gameState.order.forEach((uid, idx) => {
                 const p = gameState.players[uid];
                 const activeClass = (gameState.turnIndex === idx) ? 'text-green-400 font-bold' : 'text-stone-500';
                 const indicator = (gameState.turnIndex === idx) ? '> ' : '';
-                playersHtml += `<div class="${activeClass} truncate max-w-[150px]">${indicator}${p.name} (${p.hand.length})</div>`;
+                playersHtml += `<div class="${activeClass} truncate">${indicator}${p.name} (${p.hand.length})</div>`;
             });
             
             html += `
-                <div class="absolute top-4 left-4 bg-black/60 p-3 rounded border border-white/10 z-20 text-lg shadow-lg max-w-[50%]">
-                    <div class="text-stone-400 text-xs">ROOM CODE</div>
-                    <div class="text-yellow-400 text-2xl mb-1 tracking-widest leading-none">${currentGameId}</div>
-                    <div class="text-sm space-y-1 mt-2">${playersHtml}</div>
+                <div class="absolute top-4 left-4 bg-black/60 p-4 rounded border border-white/10 z-20 text-xl shadow-lg max-w-[50%] min-w-[200px]">
+                    <div class="text-stone-400 text-sm">ROOM CODE</div>
+                    <div class="text-yellow-400 text-3xl mb-3 tracking-widest leading-none">${currentGameId}</div>
+                    <div class="space-y-1">${playersHtml}</div>
                 </div>
             `;
 
+            // Opponents
             html += `<div class="absolute top-4 w-full flex justify-center z-10 gap-4 pointer-events-none pl-[25%] pr-4">`;
             gameState.order.forEach(oid => {
                 if (oid === myUid) return;
                 const p = gameState.players[oid];
                 html += `
                     <div class="flex flex-col items-center">
-                        <div class="bg-black/50 px-2 rounded mb-1 text-xs whitespace-nowrap">${p.name}</div>
+                        <div class="bg-black/50 px-2 rounded mb-1 text-sm whitespace-nowrap">${p.name}</div>
                         <div class="flex -space-x-[15px] sm:-space-x-12 transform scale-75 origin-top justify-center">
                             ${p.hand.map(() => `<div class="card-sprite" style="${getCardStyle(null)}"></div>`).join('')}
                         </div>
@@ -276,6 +273,7 @@
             });
             html += `</div>`;
 
+            // Center Table
             html += `
                 <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="flex gap-8 sm:gap-16 transform scale-100 pointer-events-auto items-center">
@@ -285,14 +283,19 @@
                                  <div class="card-sprite" style="${getCardStyle(null)}"></div>` : 
                                 `<div style="width:${CARD_WIDTH*SCALE}px; height:${CARD_HEIGHT*SCALE}px" class="border-2 border-dashed border-white/30 rounded flex items-center justify-center text-white/30 text-xs">EMPTY</div>`
                             }
+                            
                             ${gameState.attackValue > 0 ? 
-                                `<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-red-600 text-white font-bold px-2 py-1 rounded text-sm animate-bounce-pixel whitespace-nowrap border-2 border-white shadow-lg z-20">DRAW ${gameState.attackValue}</div>` : ''
+                                `<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white font-bold px-3 py-1 rounded text-lg animate-bounce-pixel whitespace-nowrap border-2 border-white shadow-lg z-20">DRAW ${gameState.attackValue}</div>` : ''
+                            }
+                            
+                            ${gameState.skipStack > 0 ? 
+                                `<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-purple-600 text-white font-bold px-3 py-1 rounded text-lg animate-bounce-pixel whitespace-nowrap border-2 border-white shadow-lg z-20">SKIP! (${gameState.skipStack})</div>` : ''
                             }
                         </div>
                         <div class="relative">
                             <div class="card-sprite" style="${getCardStyle(topCard)}"></div>
                             ${gameState.activeSuit ? `
-                                <div class="absolute -top-12 left-1/2 -translate-x-1/2 bg-white w-10 h-10 flex items-center justify-center rounded-full text-3xl border-4 border-yellow-400 shadow-xl ${['H','D'].includes(gameState.activeSuit) ? 'text-red-600' : 'text-black'}">
+                                <div class="absolute -top-14 left-1/2 -translate-x-1/2 bg-white w-12 h-12 flex items-center justify-center rounded-full text-4xl border-4 border-yellow-400 shadow-xl ${['H','D'].includes(gameState.activeSuit) ? 'text-red-600' : 'text-black'}">
                                     ${{'H':'♥','D':'♦','C':'♣','S':'♠'}[gameState.activeSuit]}
                                 </div>` : ''
                             }
@@ -301,23 +304,29 @@
                 </div>
             `;
 
+            // My Hand (Scrollable & Padded)
             const myHand = gameState.players[myUid].hand;
-            // Responsive spacing for hand based on card count
             const spaceClass = myHand.length > 6 ? '-space-x-8 sm:-space-x-12' : '-space-x-4 sm:-space-x-8';
             
+            // Dynamic Turn Message
+            let msg = "YOUR TURN";
+            if (gameState.mustPlayAgain) msg = "PLAY AGAIN (7)";
+            if (gameState.skipStack > 0) msg = "COUNTER OR SKIP";
+            if (gameState.attackValue > 0) msg = `DEFEND OR DRAW ${gameState.attackValue}`;
+
             html += `
-                <div class="absolute bottom-0 w-full z-30 pb-4 flex flex-col items-center pointer-events-none">
-                    ${isMyTurn ? `<div class="mb-4 bg-yellow-400 text-black px-4 py-1 rounded font-bold text-xl shadow-lg animate-bounce-pixel border-2 border-white pointer-events-auto cursor-default z-40">
-                        ${gameState.mustPlayAgain ? "PLAY AGAIN (7)" : "YOUR TURN"}
+                <div class="absolute bottom-0 w-full z-30 flex flex-col items-center pointer-events-none">
+                    ${isMyTurn ? `<div class="mb-2 bg-yellow-400 text-black px-6 py-2 rounded font-bold text-2xl shadow-lg animate-bounce-pixel border-2 border-white pointer-events-auto cursor-default z-40">
+                        ${msg}
                     </div>` : ''}
                     
-                    <div class="w-full overflow-x-auto hide-scrollbar px-4 pointer-events-auto">
-                        <div class="flex justify-center min-w-min mx-auto ${spaceClass} pb-4 pt-4">
+                    <div class="w-full overflow-x-auto hide-scrollbar px-4 pb-8 pt-12 pointer-events-auto">
+                        <div class="flex justify-center min-w-min mx-auto ${spaceClass}">
                             ${myHand.map((card, idx) => {
                                 const playable = isMyTurn && canPlay(card);
                                 return `
-                                    <div class="relative transition-transform duration-200 hover:-translate-y-8 ${playable ? 'cursor-pointer' : ''} flex-shrink-0">
-                                        <div class="card-sprite ${playable ? 'playable' : 'brightness-75'}" 
+                                    <div class="relative transition-transform duration-200 hover:-translate-y-12 ${playable ? 'cursor-pointer' : ''} flex-shrink-0">
+                                        <div class="card-sprite ${playable ? 'playable' : 'brightness-50'}" 
                                              style="${getCardStyle(card)}"
                                              onclick="window.handleCardClick('${card.id}')">
                                         </div>
@@ -333,11 +342,11 @@
                 html += `
                     <div class="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
                         <div class="text-center px-4">
-                            <h2 class="text-3xl text-white mb-4">WAITING FOR PLAYERS</h2>
-                            <div class="text-stone-400 mb-8">CODE: <span class="text-yellow-400 text-2xl select-all">${currentGameId}</span></div>
+                            <h2 class="text-4xl text-white mb-4">WAITING FOR PLAYERS</h2>
+                            <div class="text-stone-400 mb-8 text-xl">CODE: <span class="text-yellow-400 text-3xl select-all">${currentGameId}</span></div>
                             ${gameState.host === myUid ? 
                                 `<button onclick="window.handleStartGame()" class="bg-green-600 hover:bg-green-500 text-white text-2xl px-8 py-3 rounded pixel-btn w-full sm:w-auto">START GAME</button>` : 
-                                `<div class="text-white animate-pulse">Waiting for host...</div>`
+                                `<div class="text-white animate-pulse text-xl">Waiting for host...</div>`
                             }
                         </div>
                     </div>
@@ -372,25 +381,28 @@
         // --- Logic ---
         const createGame = async () => {
             if (!currentUser) return;
+            const name = document.getElementById('input-name').value || "Player";
             const newId = Math.random().toString(36).substring(2, 6).toUpperCase();
             const deck = generateDeck();
             const p1Hand = deck.splice(0, 7);
             const startCard = deck.shift();
 
             const initialState = {
-                players: { [currentUser.uid]: { name: "Player 1", hand: p1Hand, id: currentUser.uid } },
+                players: { [currentUser.uid]: { name: name, hand: p1Hand, id: currentUser.uid } },
                 order: [currentUser.uid],
                 deck,
                 discard: [startCard],
                 turnIndex: 0,
                 direction: 1,
                 attackValue: 0,
+                skipStack: 0, // NEW: For stacking 8s
                 aceCounterActive: false,
                 mustPlayAgain: false,
                 activeSuit: null,
                 status: 'waiting',
                 host: currentUser.uid,
-                winner: null
+                winner: null,
+                winnerId: null
             };
 
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${newId}`), initialState);
@@ -400,6 +412,8 @@
         const joinGame = (code) => {
             code = code.toUpperCase();
             if (!currentUser) return;
+            const nameInput = document.getElementById('input-name');
+            const name = nameInput ? nameInput.value : "Player";
 
             const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${code}`);
             
@@ -423,7 +437,7 @@
                     const hand = deck.splice(0, 7);
                     const newOrder = [...data.order, currentUser.uid];
                     await updateDoc(gameRef, {
-                        [`players.${currentUser.uid}`]: { name: `Player ${newOrder.length}`, hand, id: currentUser.uid },
+                        [`players.${currentUser.uid}`]: { name: name, hand, id: currentUser.uid },
                         order: newOrder,
                         deck
                     });
@@ -437,17 +451,41 @@
 
         const canPlay = (card) => {
             if (!gameState || gameState.status !== 'playing') return false;
-            const { order, turnIndex, discard, attackValue, aceCounterActive, activeSuit } = gameState;
+            const { order, turnIndex, discard, attackValue, skipStack, aceCounterActive, activeSuit } = gameState;
             if (order[turnIndex] !== currentUser.uid) return false;
 
             const top = discard[discard.length - 1];
             const effectiveSuit = activeSuit || top.suit;
 
+            // 1. Skip Stack Logic (8s)
+            if (skipStack > 0) {
+                // Must play an 8 to counter
+                return card.rank === '8';
+            }
+
+            // 2. Attack Logic (2s, Jokers)
             if (attackValue > 0) {
-                if (aceCounterActive) return card.rank === 'A';
+                if (aceCounterActive) {
+                    // Counter reflected Ace: ONLY Ace with SAME suit (impossible in single deck but ok for logic) or just matching Ace?
+                    // User said: "ace can only be placed on a 2 if its the same symbol"
+                    // If defending against Ace, you need another Ace.
+                    return card.rank === 'A'; 
+                }
+                // Defending against 2
+                if (top.rank === '2') {
+                    // Can counter with 2
+                    if (card.rank === '2') return true;
+                    // Can counter with Joker
+                    if (card.suit === 'Joker') return true;
+                    // Can counter with Ace IF SAME SUIT
+                    if (card.rank === 'A' && card.suit === top.suit) return true;
+                    return false;
+                }
+                // Defending against Joker
                 return card.rank === '2' || card.suit === 'Joker' || card.rank === 'A';
             }
 
+            // 3. Normal Logic
             if (card.suit === 'Joker') return true;
             if (card.rank === 'J') return true;
             if (card.suit === effectiveSuit) return true;
@@ -466,13 +504,14 @@
                 return;
             }
 
-            const { order, turnIndex, discard, players, direction, attackValue } = gameState;
+            const { order, turnIndex, discard, players, direction, attackValue, skipStack } = gameState;
             const myHand = players[currentUser.uid].hand.filter(c => c.id !== card.id);
             const nextDiscard = [...discard, card];
 
             let nextTurn = turnIndex;
             let nextDir = direction;
             let nextAttack = attackValue;
+            let nextSkipStack = skipStack;
             let nextAceLock = false;
             let nextMustPlayAgain = false;
 
@@ -480,38 +519,62 @@
             const isJoker = card.suit === 'Joker';
             const isAce = card.rank === 'A';
             const is7 = card.rank === '7';
+            const is8 = card.rank === '8';
+
+            // --- Effect Logic ---
+            
+            // Ace Reversal
+            if (isAce) {
+                nextDir = direction * -1;
+            }
 
             if (attackValue > 0) {
+                // We are defending
                 if (is2) {
                     nextAttack += 2;
-                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 } else if (isJoker) {
                     nextAttack += 5;
-                    nextTurn = (turnIndex + direction + order.length) % order.length;
-                } else if (isAce) {
-                    nextDir = direction * -1;
                     nextTurn = (turnIndex + nextDir + order.length) % order.length;
+                } else if (isAce) {
+                    // Reflection (Direction already flipped above)
+                    // Lock Ace (next player must Ace or take)
                     nextAceLock = true;
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
+                }
+            } else if (skipStack > 0) {
+                // We are countering a skip
+                if (is8) {
+                    nextSkipStack = 1; // Just pass the skip, do not increment (No Stacking)
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 }
             } else {
+                // Normal Play
                 if (is2) {
                     nextAttack = 2;
-                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 } else if (isJoker) {
                     nextAttack = 5;
-                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 } else if (is7) {
-                    nextMustPlayAgain = true;
+                    nextMustPlayAgain = true; // Same turn
+                    nextTurn = turnIndex;
+                } else if (is8) {
+                    nextSkipStack = 1; // Start skip stack
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 } else {
-                    nextTurn = (turnIndex + direction + order.length) % order.length;
+                    nextTurn = (turnIndex + nextDir + order.length) % order.length;
                 }
             }
 
+            // Win Check
             let status = gameState.status;
             let winner = null;
+            let winnerId = null;
             if (myHand.length === 0) {
                 status = 'finished';
                 winner = players[currentUser.uid].name;
+                winnerId = currentUser.uid;
             }
 
             const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`);
@@ -521,19 +584,33 @@
                 turnIndex: nextTurn,
                 direction: nextDir,
                 attackValue: nextAttack,
+                skipStack: nextSkipStack,
                 aceCounterActive: nextAceLock,
                 mustPlayAgain: nextMustPlayAgain,
                 activeSuit: declaredSuit,
                 status,
-                winner
+                winner,
+                winnerId
             });
         };
 
         const drawCards = async () => {
             if (!gameState) return;
-            const { deck, discard, players, turnIndex, order, direction, attackValue } = gameState;
+            const { deck, discard, players, turnIndex, order, direction, attackValue, skipStack } = gameState;
             if (order[turnIndex] !== currentUser.uid) return;
 
+            // Handle Skips (If you click deck when skipped, you perform the skip)
+            if (skipStack > 0) {
+                const nextTurn = (turnIndex + direction + order.length) % order.length;
+                // Skip resolved, reset stack
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', `pesten_${currentGameId}`), {
+                    skipStack: 0,
+                    turnIndex: nextTurn
+                });
+                return;
+            }
+
+            // Normal Draw
             let currentDeck = [...deck];
             let currentDiscard = [...discard];
 
