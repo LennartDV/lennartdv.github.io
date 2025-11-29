@@ -81,16 +81,15 @@
         .modal-enter { opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .modal-enter.active { opacity: 1; pointer-events: auto; }
 
-        /* Start Screen Specifics */
         .retro-box {
-            background: #292524; /* stone-800 */
-            border: 4px solid #44403c; /* stone-700 */
+            background: #292524;
+            border: 4px solid #44403c;
             box-shadow: 8px 8px 0 rgba(0,0,0,0.5);
         }
         .retro-input {
-            background: #1c1917; /* stone-900 */
-            border: 2px solid #57534e; /* stone-600 */
-            color: #fbbf24; /* yellow-400 */
+            background: #1c1917;
+            border: 2px solid #57534e;
+            color: #fbbf24;
             text-shadow: 1px 1px 0 #000;
         }
         .retro-input:focus {
@@ -249,11 +248,11 @@
             
             if (!currentUser) return;
 
-            // --- LOBBY SCREEN OVERHAUL ---
+            // --- LOBBY SCREEN ---
             if (!currentGameId) {
                 appDiv.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full relative px-4">
-                        <!-- Floating Background Decorations -->
+                        <!-- Floating Decorations -->
                         <div class="absolute top-10 left-10 opacity-30 animate-float" style="animation-delay: 0s;">
                             <div class="card-sprite" style="${getCardStyle({suit:'H', rank:'A'})}"></div>
                         </div>
@@ -261,12 +260,10 @@
                             <div class="card-sprite" style="${getCardStyle({suit:'S', rank:'8'})}"></div>
                         </div>
 
-                        <!-- Main Title -->
+                        <!-- Main Title (Image Logo) -->
                         <div class="mb-8 text-center z-10">
-                            <h1 class="text-8xl md:text-9xl text-yellow-400 font-bold drop-shadow-[4px_4px_0_rgba(0,0,0,1)] tracking-widest animate-bounce-pixel">
-                                EIGHTS!
-                            </h1>
-                            <p class="text-stone-400 text-2xl tracking-widest mt-2 bg-black/40 px-4 py-1 rounded">MULTIPLAYER PIXEL CARD GAME</p>
+                            <img src="8! Logo.png" alt="EIGHTS!" class="h-48 md:h-72 mx-auto animate-bounce-pixel object-contain filter drop-shadow-[4px_4px_0_rgba(0,0,0,1)]">
+                            <p class="text-stone-400 text-2xl tracking-widest mt-4 bg-black/40 px-4 py-1 rounded">MULTIPLAYER PIXEL CARD GAME</p>
                         </div>
                         
                         <!-- Lobby Box -->
