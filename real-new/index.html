@@ -8,6 +8,10 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Google Fonts for that Newspaper feel -->
     <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300&family=Playfair+Display:wght@400;700;900&family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
+    
+    <!-- MathJax for rendering formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
     <style>
         body {
@@ -180,8 +184,9 @@
                 <h3 class="font-bold text-2xl mb-3 mt-8">The Equation of Doom</h3>
                 <p class="mb-4">The researchers presented a terrifying equation regarding the rate of decline:</p>
                 
-                <div class="bg-gray-800 text-white p-6 rounded-lg my-6 text-center font-serif text-xl overflow-x-auto shadow-inner">
-                    $$ IQ_{loss} = \frac{CandyCanes \times \sqrt{Jolliness}}{PlotComplexity} $$
+                <div class="bg-gray-800 text-white p-6 rounded-lg my-6 text-center shadow-inner overflow-hidden">
+                    <!-- MathJax uses $$ for display math -->
+                    $$ IQ_{loss} = \frac{\text{CandyCanes} \times \sqrt{\text{Jolliness}}}{\text{PlotComplexity}} $$
                 </div>
 
                 <p class="mb-6">As <em>PlotComplexity</em> approaches zero (as seen in most cable holiday movies), <em>IQ loss</em> approaches infinity.</p>
@@ -423,4 +428,5 @@
     </script>
 </body>
 </html>
+
 
