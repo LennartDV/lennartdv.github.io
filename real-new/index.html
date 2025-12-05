@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study: Holiday Movies Shrink Brains - The Cerebral Sentinel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts for that Newspaper feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300&family=Playfair+Display:wght@400;700;900&family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Merriweather', serif;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h1, h2, h3, h4, h5, h6, .headline-font {
+            font-family: 'Playfair Display', serif;
+        }
+        .sans-font {
+            font-family: 'Roboto Condensed', sans-serif;
+        }
+        .drop-cap::first-letter {
+            float: left;
+            font-size: 4.5rem;
+            line-height: 0.8;
+            font-weight: bold;
+            padding-right: 12px;
+            padding-top: 4px;
+            color: #1a202c;
+        }
+        .article-link {
+            color: #2563eb;
+            text-decoration: underline;
+            text-decoration-color: #93c5fd;
+            text-underline-offset: 2px;
+            transition: all 0.2s;
+        }
+        .article-link:hover {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        /* Custom Ticker Animation */
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .ticker-wrap {
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .ticker-content {
+            display: inline-block;
+            animation: ticker 30s linear infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Bar -->
+    <div class="bg-black text-white text-xs py-1 px-4 flex justify-between items-center sans-font tracking-wider">
+        <div class="flex items-center space-x-4">
+            <span>FRIDAY, DECEMBER 5, 2025</span>
+            <span class="text-gray-400">|</span>
+            <span>VOL. CDXX</span>
+        </div>
+        <div class="hidden md:flex space-x-4">
+            <a href="#" class="hover:text-gray-300">SUBSCRIBE</a>
+            <a href="#" class="hover:text-gray-300">LOG IN</a>
+        </div>
+    </div>
+
+    <!-- Breaking News Ticker -->
+    <div class="bg-red-700 text-white text-sm py-2 overflow-hidden relative sans-font font-bold">
+        <div class="ticker-wrap">
+            <div class="ticker-content pl-4">
+                BREAKING: SURGEON GENERAL WARNS AGAINST "HALLMARK MARATHONS" — SCIENTISTS DISCOVER "JINGLE BELLS" FREQUENCY CAUSES MEMORY LOSS — ELON MUSK ATTEMPTS TO BUY CHRISTMAS — NEW STUDY: EGGNOG IS JUST THICK MILK — 
+            </div>
+        </div>
+    </div>
+
+    <!-- Header / Logo -->
+    <header class="border-b-4 border-black py-6 bg-white">
+        <div class="container mx-auto px-4 text-center">
+            <h1 class="text-5xl md:text-7xl font-black tracking-tight uppercase mb-2">The Cerebral Sentinel</h1>
+            <p class="text-sm md:text-base italic serif text-gray-600">"Truth, Logic, and The Fear of Atrophy"</p>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="border-b border-gray-300 bg-white sticky top-0 z-50 shadow-sm">
+        <div class="container mx-auto px-4 flex justify-center py-3 overflow-x-auto">
+            <ul class="flex space-x-8 sans-font font-bold text-sm tracking-widest uppercase text-gray-800 whitespace-nowrap">
+                <li><a href="#" class="hover:text-red-700">World</a></li>
+                <li><a href="#" class="hover:text-red-700">Politics</a></li>
+                <li><a href="#" class="text-red-700 border-b-2 border-red-700 pb-1">Neuro-Science</a></li>
+                <li><a href="#" class="hover:text-red-700">Tech</a></li>
+                <li><a href="#" class="hover:text-red-700">Health</a></li>
+                <li><a href="#" class="hover:text-red-700">Culture</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content Grid -->
+    <main class="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Sidebar (Share & Author) -->
+        <aside class="hidden lg:block lg:col-span-2 text-right sticky top-24 h-min">
+            <div class="mb-6">
+                <p class="sans-font font-bold text-gray-500 text-xs mb-2">SHARE</p>
+                <div class="flex flex-col items-end space-y-3">
+                    <button class="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-blue-600 hover:text-white transition" onclick="copyToClipboard()"><i class="fas fa-link"></i></button>
+                    <button class="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-blue-400 hover:text-white transition"><i class="fab fa-twitter"></i></button>
+                    <button class="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-blue-800 hover:text-white transition"><i class="fab fa-facebook-f"></i></button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Article -->
+        <article class="col-span-1 lg:col-span-7 bg-white p-0 md:p-4 rounded-sm">
+            <span class="text-red-700 font-bold sans-font tracking-wider text-xs uppercase block mb-2">Health & Wellness</span>
+            <h1 class="text-3xl md:text-5xl font-bold leading-tight mb-4 text-gray-900">Surgeon General Declares "Holiday Rom-Coms" a Class 1 Neuro-Hazard</h1>
+            <h2 class="text-xl md:text-2xl text-gray-600 leading-snug mb-6 italic">"The brain cannot survive that much plaid," claims shocking new report from the Global Institute of Neural Preservation.</h2>
+
+            <div class="flex items-center border-t border-b border-gray-200 py-3 mb-6">
+                <div class="sans-font text-xs md:text-sm text-gray-500">
+                    <span class="font-bold text-black uppercase">By Dr. A. I. Turing</span> | <span class="uppercase">Dateline: Switzerland</span> | <span class="italic">3 Min Read</span>
+                </div>
+            </div>
+
+            <!-- SVG Illustration -->
+            <figure class="mb-8">
+                <div class="w-full bg-gray-100 rounded-lg border border-gray-200 overflow-hidden relative" style="height: 350px;">
+                    <!-- Inline SVG for Brain Scan -->
+                    <svg viewBox="0 0 800 400" class="w-full h-full object-cover">
+                        <rect width="800" height="400" fill="#1a202c"/>
+                        
+                        <!-- Grid -->
+                        <path d="M0 50h800M0 100h800M0 150h800M0 200h800M0 250h800M0 300h800M0 350h800" stroke="#2d3748" stroke-width="1"/>
+                        <path d="M100 0v400M200 0v400M300 0v400M400 0v400M500 0v400M600 0v400M700 0v400" stroke="#2d3748" stroke-width="1"/>
+
+                        <!-- Left Brain (Holiday Movie) -->
+                        <text x="200" y="40" fill="#fc8181" text-anchor="middle" font-family="monospace" font-size="14">SUBJECT A: "THE PRINCESS SWITCH"</text>
+                        <path d="M50 200 Q 125 200 200 200 T 350 200" fill="none" stroke="#fc8181" stroke-width="3"/>
+                        <text x="200" y="230" fill="#fc8181" text-anchor="middle" font-family="monospace" font-size="12">FLATLINE (SUGAR COMA)</text>
+
+                        <!-- Right Brain (Sci-Fi) -->
+                        <text x="600" y="40" fill="#63b3ed" text-anchor="middle" font-family="monospace" font-size="14">SUBJECT B: "BLADE RUNNER 2049"</text>
+                        <path d="M450 200 Q 475 100 500 300 T 550 50 T 600 350 T 650 100 T 700 250 T 750 200" fill="none" stroke="#63b3ed" stroke-width="3"/>
+                        <text x="600" y="380" fill="#63b3ed" text-anchor="middle" font-family="monospace" font-size="12">PEAK SYNAPTIC FIRING</text>
+                        
+                        <!-- Divider -->
+                        <line x1="400" y1="0" x2="400" y2="400" stroke="white" stroke-width="2" stroke-dasharray="5,5"/>
+                    </svg>
+                </div>
+                <figcaption class="text-xs text-gray-500 mt-2 sans-font text-right">FIG 1.A: Comparative neural activity during key plot points.</figcaption>
+            </figure>
+
+            <div class="article-content text-lg leading-relaxed text-gray-800">
+                <p class="drop-cap mb-6">In a stunning press conference that has left the world reeling (and frantically canceling Disney+ subscriptions), the <strong class="font-bold">Global Institute of Neural Preservation (GINP)</strong> has released a study confirming that watching Christmas movies causes rapid, reversible brain shrinkage.</p>
+
+                <p class="mb-6">Conversely, the study suggests that bing-watching Science Fiction is the only known cure for what doctors are calling "Festive Atrophy Syndrome."</p>
+
+                <h3 class="font-bold text-2xl mb-3 mt-8">The "Gingerbread Effect"</h3>
+                <p class="mb-6">According to lead researcher Dr. Cornelius Cortex, the human brain enters a "hibernation state" the moment it detects a plot involving a high-powered business woman returning to her hometown to save a family bakery.</p>
+
+                <blockquote class="border-l-4 border-red-700 pl-6 italic text-xl text-gray-700 my-8 bg-gray-50 py-4 pr-4">
+                    "We observed the subjects watching 'The Knight Before Christmas'. Within 15 minutes, their critical thinking synapses coated themselves in a sticky, metaphorical mental nog. This causes the frontal lobe to turn into jelly. We call this the Gingerbread Effect."
+                    <footer class="text-sm font-bold mt-2 not-italic text-black">— Dr. Cornelius Cortex, GINP Lead Researcher</footer>
+                </blockquote>
+
+                <p class="mb-6">The report outlines the specific dangers of common holiday tropes:</p>
+                <ul class="list-disc ml-6 mb-6 space-y-2 marker:text-red-600">
+                    <li><strong>The "Magic Santa" Trope:</strong> Lowers math skills by 40%.</li>
+                    <li><strong>The "Grumpy Prince" Trope:</strong> Causes temporary loss of object permanence.</li>
+                    <li><strong>Excessive Tinsel Exposure:</strong> Over-stimulates the visual cortex, leading to an inability to perceive the color beige.</li>
+                </ul>
+
+                <h3 class="font-bold text-2xl mb-3 mt-8">The Equation of Doom</h3>
+                <p class="mb-4">The researchers presented a terrifying equation regarding the rate of decline:</p>
+                
+                <div class="bg-gray-800 text-white p-6 rounded-lg my-6 text-center font-serif text-xl overflow-x-auto shadow-inner">
+                    $$ IQ_{loss} = \frac{CandyCanes \times \sqrt{Jolliness}}{PlotComplexity} $$
+                </div>
+
+                <p class="mb-6">As <em>PlotComplexity</em> approaches zero (as seen in most cable holiday movies), <em>IQ loss</em> approaches infinity.</p>
+
+                <h3 class="font-bold text-2xl mb-3 mt-8">The Cure: Lasers and Paradoxes</h3>
+                <p class="mb-6">However, there is hope. The same study found that Science Fiction acts as "cross-fit for the neurons." While a holiday movie comforts the brain into a coma, Sci-Fi forces the brain to perform mental gymnastics.</p>
+
+                <div class="my-8 overflow-hidden rounded-lg border border-gray-300">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 border-b border-gray-300 sans-font text-sm uppercase tracking-wider">
+                                <th class="p-4">Metric</th>
+                                <th class="p-4 text-red-700">Christmas Movie</th>
+                                <th class="p-4 text-blue-700">Sci-Fi Movie</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm md:text-base">
+                            <tr class="border-b border-gray-200">
+                                <td class="p-4 font-bold">Brain Activity</td>
+                                <td class="p-4 text-gray-600">Flatline (Comatose Bliss)</td>
+                                <td class="p-4 font-bold text-blue-900">Hyper-Active (Dread)</td>
+                            </tr>
+                            <tr class="border-b border-gray-200 bg-gray-50">
+                                <td class="p-4 font-bold">Logic Centers</td>
+                                <td class="p-4 text-gray-600">Disabled by "Magic"</td>
+                                <td class="p-4 font-bold text-blue-900">Overclocked by AI Ethics</td>
+                            </tr>
+                            <tr class="border-b border-gray-200">
+                                <td class="p-4 font-bold">Result</td>
+                                <td class="p-4 text-gray-600">You forget your PIN code</td>
+                                <td class="p-4 font-bold text-blue-900">You understand Quantum Mechanics</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="mb-6">"If you find yourself wondering if the small-town innkeeper is actually Santa Claus," Dr. Cortex warned, "Turn off the TV immediately and watch a cyborg question the nature of its own soul. It’s the only way to save your mind."</p>
+            </div>
+
+            <!-- Tags -->
+            <div class="mt-10 pt-6 border-t border-gray-200">
+                <span class="text-xs font-bold text-gray-500 uppercase mr-2">Topics:</span>
+                <a href="#" class="bg-gray-100 text-gray-700 px-2 py-1 text-xs rounded hover:bg-gray-200 mr-2">Neuroscience</a>
+                <a href="#" class="bg-gray-100 text-gray-700 px-2 py-1 text-xs rounded hover:bg-gray-200 mr-2">Christmas</a>
+                <a href="#" class="bg-gray-100 text-gray-700 px-2 py-1 text-xs rounded hover:bg-gray-200 mr-2">Public Health</a>
+                <a href="#" class="bg-gray-100 text-gray-700 px-2 py-1 text-xs rounded hover:bg-gray-200 mr-2">Dune</a>
+            </div>
+
+        </article>
+
+        <!-- Right Sidebar -->
+        <aside class="col-span-1 lg:col-span-3 space-y-8">
+            
+            <!-- Ad Box -->
+            <div class="bg-gray-100 border border-gray-300 p-6 text-center rounded-sm">
+                <p class="text-xs font-bold text-gray-400 mb-2 tracking-widest uppercase">Advertisement</p>
+                <div class="border-2 border-dashed border-gray-400 p-4">
+                    <h4 class="font-bold text-lg mb-2">Feeling Festive?</h4>
+                    <p class="text-sm mb-4">You might be suffering from Neural Rot.</p>
+                    <button class="bg-blue-600 text-white px-4 py-2 text-sm font-bold uppercase hover:bg-blue-700 transition w-full">Buy "The Matrix" 4K Boxset</button>
+                </div>
+            </div>
+
+            <!-- Trending Stories -->
+            <div>
+                <h3 class="font-bold sans-font border-b-2 border-black pb-2 mb-4 text-lg">MOST READ</h3>
+                <ul class="space-y-4">
+                    <li class="group cursor-pointer">
+                        <span class="text-red-700 font-bold text-xs">POLITICS</span>
+                        <h4 class="font-serif font-bold text-md leading-tight group-hover:text-red-700 transition">Santa Claus Sanctioned for "Unauthorized Airspace Incursions"</h4>
+                    </li>
+                    <li class="group cursor-pointer">
+                        <span class="text-red-700 font-bold text-xs">TECH</span>
+                        <h4 class="font-serif font-bold text-md leading-tight group-hover:text-red-700 transition">Local Man Sells Kidney to Afford iPhone 17 "Pro Max Ultra"</h4>
+                    </li>
+                    <li class="group cursor-pointer">
+                        <span class="text-red-700 font-bold text-xs">SCIENCE</span>
+                        <h4 class="font-serif font-bold text-md leading-tight group-hover:text-red-700 transition">Study: Cats Actually Understand English, They Just Don't Care</h4>
+                    </li>
+                    <li class="group cursor-pointer">
+                        <span class="text-red-700 font-bold text-xs">LOCAL</span>
+                        <h4 class="font-serif font-bold text-md leading-tight group-hover:text-red-700 transition">Gingerbread House Condemned for Building Code Violations</h4>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Interactive Poll -->
+            <div class="bg-blue-50 border border-blue-200 p-5 rounded-sm">
+                <h3 class="font-bold sans-font text-blue-900 mb-3">READER POLL</h3>
+                <p class="text-sm font-serif mb-4">What is your viewing plan for tonight?</p>
+                
+                <div id="poll-options">
+                    <button onclick="vote('smart')" class="w-full text-left bg-white border border-blue-200 p-3 mb-2 hover:bg-blue-100 transition flex justify-between group">
+                        <span class="text-sm font-bold text-gray-700">Sci-Fi (Save my brain)</span>
+                        <i class="fas fa-brain text-gray-300 group-hover:text-blue-500"></i>
+                    </button>
+                    <button onclick="vote('dumb')" class="w-full text-left bg-white border border-blue-200 p-3 mb-2 hover:bg-red-100 transition flex justify-between group">
+                        <span class="text-sm font-bold text-gray-700">Rom-Com (I accept my fate)</span>
+                        <i class="fas fa-candy-cane text-gray-300 group-hover:text-red-500"></i>
+                    </button>
+                </div>
+                
+                <div id="poll-results" class="hidden space-y-3">
+                    <div>
+                        <div class="flex justify-between text-xs font-bold mb-1">
+                            <span>Sci-Fi</span>
+                            <span>98%</span>
+                        </div>
+                        <div class="w-full bg-gray-300 h-2 rounded-full overflow-hidden">
+                            <div class="bg-blue-600 h-full" style="width: 98%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-bold mb-1">
+                            <span>Rom-Com</span>
+                            <span>2%</span>
+                        </div>
+                        <div class="w-full bg-gray-300 h-2 rounded-full overflow-hidden">
+                            <div class="bg-red-500 h-full" style="width: 2%"></div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3 italic text-center">Thank you for choosing intelligence.</p>
+                </div>
+            </div>
+
+        </aside>
+
+    </main>
+
+    <!-- Newsletter Footer -->
+    <div class="bg-gray-100 border-t border-gray-300 py-12">
+        <div class="container mx-auto px-4 text-center max-w-2xl">
+            <h3 class="headline-font text-2xl font-bold mb-2">Get Smarter Every Morning</h3>
+            <p class="text-gray-600 mb-6 serif text-sm">Join 10 million subscribers who prefer spaceships over sleighs.</p>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input type="email" placeholder="Enter your email address" class="flex-1 p-3 border border-gray-300 focus:outline-none focus:border-black">
+                <button class="bg-black text-white px-6 py-3 font-bold sans-font uppercase tracking-wider hover:bg-gray-800 transition">Subscribe</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Footer -->
+    <footer class="bg-black text-white py-12 border-t border-gray-800">
+        <div class="container mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div class="col-span-1 md:col-span-2">
+                <h2 class="headline-font text-3xl font-bold mb-4">The Cerebral Sentinel</h2>
+                <p class="text-gray-400 text-sm leading-relaxed max-w-sm">
+                    Dedicated to factual accuracy, unless the facts are boring. The Cerebral Sentinel is the world's leading source of news for people who think other news sites are too cheerful.
+                </p>
+            </div>
+            <div>
+                <h4 class="sans-font font-bold mb-4 text-gray-500">SECTIONS</h4>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li><a href="#" class="hover:underline">Global News</a></li>
+                    <li><a href="#" class="hover:underline">Science & Tech</a></li>
+                    <li><a href="#" class="hover:underline">Arts & Leisure</a></li>
+                    <li><a href="#" class="hover:underline">Opinion</a></li>
+                    <li><a href="#" class="hover:underline">Obituaries (for brains)</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="sans-font font-bold mb-4 text-gray-500">LEGAL</h4>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li><a href="#" class="hover:underline">Terms of Service</a></li>
+                    <li><a href="#" class="hover:underline">Privacy Policy</a></li>
+                    <li><a href="#" class="hover:underline">Cookie Policy</a></li>
+                    <li><a href="#" class="hover:underline">Satire Disclaimer</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="container mx-auto px-4 border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 font-sans">
+            <p>&copy; 2025 The Cerebral Sentinel. All rights reserved. Do not watch "Elf" without supervision.</p>
+            <div class="flex space-x-4 mt-4 md:mt-0">
+                <a href="#" class="hover:text-white"><i class="fab fa-twitter"></i></a>
+                <a href="#" class="hover:text-white"><i class="fab fa-facebook"></i></a>
+                <a href="#" class="hover:text-white"><i class="fab fa-instagram"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        function vote(choice) {
+            const options = document.getElementById('poll-options');
+            const results = document.getElementById('poll-results');
+            
+            // Simple fade effect simulation
+            options.style.opacity = '0';
+            setTimeout(() => {
+                options.style.display = 'none';
+                results.classList.remove('hidden');
+                // Trigger reflow for animation
+                void results.offsetWidth; 
+                results.style.opacity = '0';
+                results.style.transition = 'opacity 0.5s';
+                results.style.opacity = '1';
+                
+                // Show message box
+                const message = document.createElement('div');
+                message.className = 'fixed bottom-5 right-5 bg-green-600 text-white px-6 py-3 rounded shadow-lg transform translate-y-20 transition-transform duration-300 z-50 flex items-center gap-3';
+                message.innerHTML = '<i class="fas fa-check-circle"></i> <span>Vote Recorded!</span>';
+                document.body.appendChild(message);
+                
+                setTimeout(() => {
+                    message.classList.remove('translate-y-20');
+                }, 100);
+
+                setTimeout(() => {
+                    message.classList.add('translate-y-20');
+                    setTimeout(() => message.remove(), 300);
+                }, 3000);
+
+            }, 300);
+        }
+
+        function copyToClipboard() {
+            const el = document.createElement('textarea');
+            el.value = window.location.href;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            
+            // Toast notification
+            const message = document.createElement('div');
+            message.className = 'fixed bottom-5 right-5 bg-gray-800 text-white px-6 py-3 rounded shadow-lg transform translate-y-20 transition-transform duration-300 z-50 flex items-center gap-3';
+            message.innerHTML = '<i class="fas fa-link"></i> <span>Link Copied to Clipboard</span>';
+            document.body.appendChild(message);
+            
+            setTimeout(() => {
+                message.classList.remove('translate-y-20');
+            }, 100);
+
+            setTimeout(() => {
+                message.classList.add('translate-y-20');
+                setTimeout(() => message.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
+
