@@ -1,240 +1,329 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
-import { Settings, TrendingUp, TrendingDown, Euro, PieChart, ArrowUpRight, ArrowDownRight, RefreshCw, Save } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fund Tracker</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Config for Dark Mode -->
+    <script>
+        tailwind.config = {
+            darkMode: 'media', // Uses system preference
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
 
-const Card = ({ children, className = "" }) => (
-  <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 ${className}`}>
-    {children}
-  </div>
-);
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
-const StatCard = ({ title, value, subtext, trend, type = "neutral" }) => {
-  const isPositive = type === "positive";
-  const isNegative = type === "negative";
-  
-  return (
-    <Card>
-      <div className="flex justify-between items-start mb-2">
-        <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium uppercase tracking-wider">{title}</h3>
-        {type !== "neutral" && (
-          <div className={`p-1.5 rounded-full ${isPositive ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
-            {isPositive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-          </div>
-        )}
-      </div>
-      <div className="text-3xl font-bold text-slate-900 dark:text-white mb-1">
-        {value}
-      </div>
-      <div className={`text-sm font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : isNegative ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
-        {subtext}
-      </div>
-    </Card>
-  );
-};
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* Smooth transitions */
+        .transition-all-300 {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div id="root"></div>
 
-export default function App() {
-  // Initial state based on user request
-  // Shares: 216.2629
-  // Approx Investment: 2500
-  // Approx Price found online: 12.10 (as of late 2025/early 2026 estimate based on search)
-  
-  const [portfolio, setPortfolio] = useState({
-    shares: 216.2629,
-    initialInvestment: 2500.00,
-    currentPrice: 12.10,
-    fundName: "ING ARIA - Global Index Portfolio Conservative",
-    isin: "LU1693142504"
-  });
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [tempPortfolio, setTempPortfolio] = useState({...portfolio});
+        // --- Icon Components (Inline SVG for reliability in single file) ---
+        const Icons = {
+            PieChart: ({size=24, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
+            Settings: ({size=24, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            ArrowUpRight: ({size=24, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>,
+            ArrowDownRight: ({size=24, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m7 7 10 10"/><path d="M17 7v10H7"/></svg>,
+            Save: ({size=24, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+            RefreshCw: ({size=24, className}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        };
 
-  // Calculations
-  const currentValue = portfolio.shares * portfolio.currentPrice;
-  const profitEuro = currentValue - portfolio.initialInvestment;
-  const profitPercent = (profitEuro / portfolio.initialInvestment) * 100;
-  const isProfit = profitEuro >= 0;
-
-  // Formatting helpers
-  const formatCurrency = (val) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(val);
-  const formatNumber = (val) => new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 4 }).format(val);
-
-  const handleSave = () => {
-    setPortfolio(tempPortfolio);
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setTempPortfolio(portfolio);
-    setIsEditing(false);
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setTempPortfolio(prev => ({
-      ...prev,
-      [name]: parseFloat(value) || 0
-    }));
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans p-4 md:p-8 transition-colors duration-200">
-      <div className="max-w-4xl mx-auto">
-        
-        {/* Header */}
-        <header className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <PieChart className="text-indigo-600 dark:text-indigo-400" />
-              My Portfolio
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-              Tracking <span className="font-mono bg-slate-200 dark:bg-slate-800 px-1 rounded">{portfolio.isin}</span>
-            </p>
-          </div>
-          <button 
-            onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm text-sm font-medium"
-          >
-            {isEditing ? <ArrowDownRight size={16}/> : <Settings size={16} />}
-            {isEditing ? "Cancel" : "Edit Details"}
-          </button>
-        </header>
-
-        {/* Edit Mode Panel */}
-        {isEditing && (
-          <div className="mb-8 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-2xl p-6 animate-in slide-in-from-top-4 duration-300">
-            <h2 className="text-lg font-semibold mb-4 text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
-              <RefreshCw size={18} /> Update Data
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Shares Owned</label>
-                <input 
-                  type="number" 
-                  name="shares"
-                  value={tempPortfolio.shares}
-                  onChange={handleChange}
-                  step="0.0001"
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Initial Investment (€)</label>
-                <input 
-                  type="number" 
-                  name="initialInvestment"
-                  value={tempPortfolio.initialInvestment}
-                  onChange={handleChange}
-                  step="0.01"
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Current Price / Unit (€)</label>
-                <input 
-                  type="number" 
-                  name="currentPrice"
-                  value={tempPortfolio.currentPrice}
-                  onChange={handleChange}
-                  step="0.01"
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                />
-              </div>
+        // --- UI Components ---
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 ${className}`}>
+                {children}
             </div>
-            <div className="mt-6 flex justify-end">
-              <button 
-                onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
-              >
-                <Save size={18} /> Save Changes
-              </button>
-            </div>
-          </div>
-        )}
+        );
 
-        {/* Main Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          
-          {/* Total Worth */}
-          <StatCard 
-            title="Total Worth" 
-            value={formatCurrency(currentValue)}
-            subtext="Current Market Value"
-            type="neutral"
-          />
+        const StatCard = ({ title, value, subtext, trend, type = "neutral" }) => {
+            const isPositive = type === "positive";
+            const isNegative = type === "negative";
+            
+            return (
+                <Card className="transition-all-300 hover:shadow-md">
+                    <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">{title}</h3>
+                        {type !== "neutral" && (
+                            <div className={`p-1.5 rounded-full ${isPositive ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                                {isPositive ? <Icons.ArrowUpRight size={16} /> : <Icons.ArrowDownRight size={16} />}
+                            </div>
+                        )}
+                    </div>
+                    <div className="text-3xl font-bold text-slate-900 dark:text-white mb-1 tracking-tight">
+                        {value}
+                    </div>
+                    <div className={`text-sm font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : isNegative ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                        {subtext}
+                    </div>
+                </Card>
+            );
+        };
 
-          {/* Profit € */}
-          <StatCard 
-            title="Total Profit (€)" 
-            value={(isProfit ? "+" : "") + formatCurrency(profitEuro)}
-            subtext={isProfit ? "Great return!" : "Currently down"}
-            type={isProfit ? "positive" : "negative"}
-            trend={isProfit ? "up" : "down"}
-          />
+        // --- Main App ---
+        function App() {
+            // Default data structure
+            const defaultData = {
+                shares: 216.2629,
+                initialInvestment: 2500.00,
+                currentPrice: 12.10, // Editable by user
+                fundName: "ING ARIA - Global Index Portfolio Conservative",
+                isin: "LU1693142504"
+            };
 
-          {/* Profit % */}
-          <StatCard 
-            title="Total Return (%)" 
-            value={(isProfit ? "+" : "") + profitPercent.toFixed(2) + "%"}
-            subtext="Since Inception"
-            type={isProfit ? "positive" : "negative"}
-            trend={isProfit ? "up" : "down"}
-          />
-        </div>
+            const [portfolio, setPortfolio] = useState(defaultData);
+            const [isEditing, setIsEditing] = useState(false);
+            const [tempPortfolio, setTempPortfolio] = useState(defaultData);
+            const [loaded, setLoaded] = useState(false);
 
-        {/* Detailed Breakdown */}
-        <Card className="overflow-hidden">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Fund Breakdown</h3>
-            <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-md font-mono">
-              Last Updated: Just now
-            </span>
-          </div>
+            // Load from LocalStorage on mount
+            useEffect(() => {
+                const savedData = localStorage.getItem('myFundPortfolio');
+                if (savedData) {
+                    try {
+                        setPortfolio(JSON.parse(savedData));
+                    } catch (e) {
+                        console.error("Failed to parse saved data", e);
+                    }
+                }
+                setLoaded(true);
+            }, []);
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700">
-                  <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Fund Name</th>
-                  <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Shares</th>
-                  <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Avg Cost</th>
-                  <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Price</th>
-                  <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Value</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                <tr className="group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                  <td className="py-4 px-2 font-medium text-slate-900 dark:text-slate-100 max-w-[200px] truncate">
-                    {portfolio.fundName}
-                    <div className="text-xs text-slate-400 font-normal">{portfolio.isin}</div>
-                  </td>
-                  <td className="py-4 px-2 text-right text-slate-600 dark:text-slate-300 font-mono">
-                    {formatNumber(portfolio.shares)}
-                  </td>
-                  <td className="py-4 px-2 text-right text-slate-600 dark:text-slate-300 font-mono">
-                    {formatCurrency(portfolio.initialInvestment / portfolio.shares)}
-                  </td>
-                  <td className="py-4 px-2 text-right text-slate-600 dark:text-slate-300 font-mono">
-                    {formatCurrency(portfolio.currentPrice)}
-                  </td>
-                  <td className="py-4 px-2 text-right font-bold text-slate-900 dark:text-white font-mono">
-                    {formatCurrency(currentValue)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
+            // Save to LocalStorage whenever portfolio changes
+            useEffect(() => {
+                if (loaded) {
+                    localStorage.setItem('myFundPortfolio', JSON.stringify(portfolio));
+                }
+            }, [portfolio, loaded]);
 
-        {/* Footer Note */}
-        <div className="mt-8 text-center text-slate-400 text-xs">
-          <p>This is a personal dashboard. Data is stored temporarily in your browser.</p>
-          <p>Always verify prices with your official broker statement.</p>
-        </div>
+            // Sync temp state when entering edit mode
+            useEffect(() => {
+                if (isEditing) {
+                    setTempPortfolio({...portfolio});
+                }
+            }, [isEditing, portfolio]);
 
-      </div>
-    </div>
-  );
-}
+            // Math
+            const currentValue = portfolio.shares * portfolio.currentPrice;
+            const profitEuro = currentValue - portfolio.initialInvestment;
+            const profitPercent = portfolio.initialInvestment > 0 ? (profitEuro / portfolio.initialInvestment) * 100 : 0;
+            const isProfit = profitEuro >= 0;
+
+            // Formatters
+            const formatCurrency = (val) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(val);
+            const formatNumber = (val) => new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 4 }).format(val);
+
+            // Handlers
+            const handleSave = () => {
+                setPortfolio(tempPortfolio);
+                setIsEditing(false);
+            };
+
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                setTempPortfolio(prev => ({
+                    ...prev,
+                    [name]: parseFloat(value) || 0
+                }));
+            };
+
+            if (!loaded) return <div className="min-h-screen flex items-center justify-center dark:bg-slate-900 text-slate-500">Loading...</div>;
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 max-w-5xl mx-auto">
+                    
+                    {/* Header */}
+                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+                        <div>
+                            <h1 className="text-3xl font-extrabold flex items-center gap-3 text-slate-900 dark:text-white tracking-tight">
+                                <Icons.PieChart className="text-indigo-600 dark:text-indigo-400" size={32} />
+                                Fund Tracker
+                            </h1>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 ml-1">
+                                Tracking <span className="font-mono font-medium text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-xs">{portfolio.isin}</span>
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => setIsEditing(!isEditing)}
+                            className={`flex items-center gap-2 px-5 py-2.5 border rounded-xl transition-all font-medium text-sm shadow-sm
+                                ${isEditing 
+                                    ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-300' 
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                        >
+                            {isEditing ? <Icons.ArrowDownRight size={18}/> : <Icons.Settings size={18} />}
+                            {isEditing ? "Cancel Editing" : "Update Prices"}
+                        </button>
+                    </header>
+
+                    {/* Edit Panel */}
+                    {isEditing && (
+                        <div className="mb-10 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl p-6 md:p-8 animate-fade-in shadow-inner">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400">
+                                    <Icons.RefreshCw size={20} /> 
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-indigo-950 dark:text-indigo-100">Update Portfolio Data</h2>
+                                    <p className="text-xs text-indigo-600/80 dark:text-indigo-400/80">Changes are saved automatically to this device.</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="group">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 group-focus-within:text-indigo-600 transition-colors">Total Shares</label>
+                                    <input 
+                                        type="number" 
+                                        name="shares"
+                                        value={tempPortfolio.shares}
+                                        onChange={handleChange}
+                                        step="0.0001"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-mono text-lg"
+                                    />
+                                </div>
+                                <div className="group">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 group-focus-within:text-indigo-600 transition-colors">Original Investment (€)</label>
+                                    <input 
+                                        type="number" 
+                                        name="initialInvestment"
+                                        value={tempPortfolio.initialInvestment}
+                                        onChange={handleChange}
+                                        step="0.01"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-mono text-lg"
+                                    />
+                                </div>
+                                <div className="group">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 group-focus-within:text-indigo-600 transition-colors">Current Price per Unit (€)</label>
+                                    <input 
+                                        type="number" 
+                                        name="currentPrice"
+                                        value={tempPortfolio.currentPrice}
+                                        onChange={handleChange}
+                                        step="0.01"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-mono text-lg"
+                                    />
+                                </div>
+                            </div>
+                            <div className="mt-8 flex justify-end">
+                                <button 
+                                    onClick={handleSave}
+                                    className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 active:scale-95"
+                                >
+                                    <Icons.Save size={18} /> Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                        <StatCard 
+                            title="Total Value" 
+                            value={formatCurrency(currentValue)}
+                            subtext="Current Market Value"
+                            type="neutral"
+                        />
+                        <StatCard 
+                            title="Profit / Loss (€)" 
+                            value={(isProfit ? "+" : "") + formatCurrency(profitEuro)}
+                            subtext={isProfit ? "Total gain since start" : "Total loss since start"}
+                            type={isProfit ? "positive" : "negative"}
+                            trend={isProfit ? "up" : "down"}
+                        />
+                        <StatCard 
+                            title="Return (%)" 
+                            value={(isProfit ? "+" : "") + profitPercent.toFixed(2) + "%"}
+                            subtext="Performance ratio"
+                            type={isProfit ? "positive" : "negative"}
+                            trend={isProfit ? "up" : "down"}
+                        />
+                    </div>
+
+                    {/* Detail Card */}
+                    <Card className="overflow-hidden mb-8 border-0 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-2">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Fund Breakdown</h3>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-full">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Live Calculation
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto -mx-6 px-6 pb-2">
+                            <table className="w-full text-left border-collapse min-w-[600px]">
+                                <thead>
+                                    <tr className="border-b border-slate-100 dark:border-slate-700">
+                                        <th className="py-4 pl-2 pr-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Fund Name</th>
+                                        <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Shares</th>
+                                        <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Avg Cost</th>
+                                        <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Current Price</th>
+                                        <th className="py-4 pl-4 pr-2 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Total Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-sm">
+                                    <tr className="group hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                        <td className="py-5 pl-2 pr-4">
+                                            <div className="font-semibold text-slate-900 dark:text-slate-100 text-base">{portfolio.fundName}</div>
+                                            <div className="text-xs text-slate-500 font-mono mt-0.5">{portfolio.isin}</div>
+                                        </td>
+                                        <td className="py-5 px-4 text-right text-slate-600 dark:text-slate-300 font-mono text-base">
+                                            {formatNumber(portfolio.shares)}
+                                        </td>
+                                        <td className="py-5 px-4 text-right text-slate-600 dark:text-slate-300 font-mono">
+                                            {formatCurrency(portfolio.initialInvestment / portfolio.shares)}
+                                        </td>
+                                        <td className="py-5 px-4 text-right text-indigo-600 dark:text-indigo-400 font-bold font-mono">
+                                            {formatCurrency(portfolio.currentPrice)}
+                                        </td>
+                                        <td className="py-5 pl-4 pr-2 text-right font-extrabold text-slate-900 dark:text-white font-mono text-lg">
+                                            {formatCurrency(currentValue)}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                    
+                    <footer className="text-center text-slate-400 text-xs pb-8">
+                        <p>Data stored locally on your device via LocalStorage.</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
 
