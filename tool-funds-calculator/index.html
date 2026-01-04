@@ -123,25 +123,45 @@
                 };
 
                 try {
-                    // Updated endpoint for yahoo-finance15
-                    const response = await fetch(`https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${config.ticker}`, options);
+                    // Using the endpoint from documentation: v1/market/quotes
+                    // Assuming /api/ prefix based on standard RapidAPI patterns and previous curl snippet
+                    const response = await fetch(`https://yahoo-finance15.p.rapidapi.com/api/v1/market/quotes?ticker=${config.ticker}`, options);
+                    
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.status}`);
+                    }
+
                     const data = await response.json();
                     
-                    // yahoo-finance15 typically wraps results in a 'body' array
-                    const quote = data.body ? data.body[0] : null;
+                    // Handling response structure based on typical YH Finance output (often inside a 'body' array)
+                    // If the endpoint returns { body: [...] }
+                    let quote = null;
+                    if (data.body && Array.isArray(data.body)) {
+                        quote = data.body[0];
+                    } else if (Array.isArray(data)) {
+                         quote = data[0];
+                    } else if (data.quoteResponse && data.quoteResponse.result) {
+                        quote = data.quoteResponse.result[0];
+                    } else {
+                         // Fallback if data is the object itself
+                         quote = data;
+                    }
                     
-                    if (quote && quote.regularMarketPrice) {
+                    // Check for price property (regularMarketPrice, price, or close)
+                    const price = quote.regularMarketPrice || quote.price || quote.close;
+
+                    if (price) {
                         setConfig(prev => ({
                             ...prev,
-                            currentPrice: quote.regularMarketPrice,
+                            currentPrice: parseFloat(price),
                             lastUpdate: new Date().toISOString()
                         }));
                     } else {
-                        console.error("API Data Structure:", data);
-                        throw new Error("ticker not found or invalid response");
+                        console.error("API Response:", data);
+                        throw new Error("price data not found in response");
                     }
                 } catch (err) {
-                    setError("api error: check key or ticker");
+                    setError(`error: ${err.message}`);
                     console.error(err);
                 } finally {
                     setIsLoading(false);
@@ -225,6 +245,16 @@
                                         onChange={(e) => setConfig({...config, apiKey: e.target.value})}
                                     />
                                 </div>
+                                <div>
+                                    <label className="text-xs text-zinc-500 lowercase-header block mb-2">ticker symbol</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. AAPL, 0P0001BUP5.F"
+                                        className="min-input w-full px-3 py-2 text-sm rounded uppercase"
+                                        value={config.ticker}
+                                        onChange={(e) => setConfig({...config, ticker: e.target.value})}
+                                    />
+                                </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-xs text-zinc-500 lowercase-header block mb-2">shares</label>
@@ -275,8 +305,8 @@
                     <div className="flex flex-col gap-4">
                         <div className="flex justify-between items-start">
                             <div>
-                                <h3 className="font-medium text-lg lowercase-header text-white">ing aria global index</h3>
-                                <p className="text-xs text-zinc-500 font-mono mt-1">LU1693142504 • {config.ticker}</p>
+                                <h3 className="font-medium text-lg lowercase-header text-white">portfolio asset</h3>
+                                <p className="text-xs text-zinc-500 font-mono mt-1">{config.ticker}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-xl font-light text-white">{fmt(config.currentPrice)}</p>
