@@ -134,25 +134,34 @@
                 try {
                     let price = null;
 
-                    // --- STRATEGY 1: Public Yahoo API (Chart Endpoint) ---
-                    // This is the most robust public endpoint for funds.
+                    // --- STRATEGY 1: Public Yahoo API (Chart Endpoint + AllOrigins) ---
                     if (config.dataSource === 'yahoo_public') {
-                        // FIX: Use range=5d to ensure we get data for funds that update slowly (fixes "No data found")
+                        // range=5d to ensure data availability
                         const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${config.ticker}?range=5d&interval=1d`;
                         
-                        // Use ThingProxy by default for public API calls, as it handles direct forwarding well
-                        const proxyUrl = `https://thingproxy.freeboard.io/fetch/${targetUrl}`;
+                        // Switching to AllOrigins proxy
+                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
                         
                         log(`Fetching: ${proxyUrl}`);
                         const response = await fetch(proxyUrl);
                         
                         if (!response.ok) {
-                            const txt = await response.text();
-                            log(`HTTP Error Body: ${txt}`);
-                            throw new Error(`HTTP Error: ${response.status}`);
+                            throw new Error(`Proxy HTTP Error: ${response.status}`);
                         }
                         
-                        const data = await response.json();
+                        const proxyData = await response.json();
+                        
+                        // AllOrigins wraps the actual response text in a 'contents' string
+                        if (!proxyData.contents) throw new Error("Proxy returned empty content");
+                        
+                        let data;
+                        try {
+                            data = JSON.parse(proxyData.contents);
+                        } catch (e) {
+                            log("Failed to parse contents JSON", proxyData.contents);
+                            throw new Error("Invalid JSON from Yahoo via Proxy");
+                        }
+                        
                         log("Public API Data:", data);
 
                         // Parse: chart.result[0].meta.regularMarketPrice
@@ -173,6 +182,7 @@
                         
                         const targetUrl = `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${encodeURIComponent(config.ticker)}`;
                         
+                        // For RapidAPI keys, corsproxy is safer than allorigins (which strips headers)
                         const finalUrl = config.useProxy 
                             ? `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
                             : targetUrl;
