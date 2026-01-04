@@ -70,6 +70,15 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        
+        /* Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #10b981;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #10b981;
+        }
 
         .animate-spin-slow { animation: spin 2s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -85,13 +94,16 @@
             // State
             const [config, setConfig] = useState(() => {
                 const saved = localStorage.getItem('yh_fund_config');
-                return saved ? JSON.parse(saved) : {
-                    apiKey: '',
-                    shares: 100,
-                    initialCost: 1000.00,
-                    ticker: '0P0001BUP5.F',
-                    currentPrice: 10.00,
-                    lastUpdate: null
+                const parsed = saved ? JSON.parse(saved) : {};
+                // Default values + Merge new 'useProxy' setting if it doesn't exist
+                return {
+                    apiKey: parsed.apiKey || '',
+                    shares: parsed.shares || 100,
+                    initialCost: parsed.initialCost || 1000.00,
+                    ticker: parsed.ticker || '0P0001BUP5.F',
+                    currentPrice: parsed.currentPrice || 10.00,
+                    lastUpdate: parsed.lastUpdate || null,
+                    useProxy: parsed.useProxy !== undefined ? parsed.useProxy : true // Default to true for Github Pages
                 };
             });
 
@@ -122,32 +134,34 @@
                     }
                 };
 
-                // The endpoint derived from your working curl snippet (plural markets, singular quote)
-                // This is the most likely valid endpoint for "YH Finance"
-                const endpoint = `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${encodeURIComponent(config.ticker)}`;
+                // Construct URL
+                const targetUrl = `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${encodeURIComponent(config.ticker)}`;
+                
+                // If using Proxy, we wrap the target URL
+                // We use corsproxy.io which is a reliable public proxy
+                const finalUrl = config.useProxy 
+                    ? `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+                    : targetUrl;
 
                 try {
-                    console.log("Fetching from:", endpoint);
-                    const response = await fetch(endpoint, options);
+                    console.log(`Fetching: ${finalUrl} (Proxy: ${config.useProxy})`);
                     
-                    console.log("Response Status:", response.status);
+                    const response = await fetch(finalUrl, options);
                     
                     if (!response.ok) {
                         const errorText = await response.text();
                         console.error("API Error Body:", errorText);
                         
-                        if (response.status === 403) throw new Error("403 Forbidden: Invalid API Key?");
-                        if (response.status === 404) throw new Error("404 Not Found: Check ticker symbol");
+                        // Handle specific HTTP errors
+                        if (response.status === 403) throw new Error("403 Forbidden: API Key invalid or Proxy rejected?");
                         if (response.status === 429) throw new Error("429 Too Many Requests");
-                        
                         throw new Error(`API Status ${response.status}: ${response.statusText}`);
                     }
 
                     const data = await response.json();
-                    console.log("API Data Received:", data);
+                    console.log("Data:", data);
                     
                     // --- Robust Data Parsing ---
-                    // YH Finance often returns data in a 'body' array
                     let quote = null;
 
                     if (data.body && Array.isArray(data.body) && data.body.length > 0) {
@@ -157,14 +171,12 @@
                     } else if (data.quoteResponse && data.quoteResponse.result) {
                         quote = data.quoteResponse.result[0];
                     } else if (typeof data === 'object') {
-                         quote = data; // Fallback: maybe the root object is the quote
+                         quote = data; 
                     }
                     
-                    if (!quote) {
-                        throw new Error("Empty data received from API");
-                    }
+                    if (!quote) throw new Error("empty data received");
 
-                    // Check for price fields (priority: regularMarketPrice > price > close)
+                    // Check for price fields
                     const price = quote.regularMarketPrice || quote.price || quote.close || quote.preMarketPrice;
 
                     if (price !== undefined && price !== null) {
@@ -174,18 +186,17 @@
                             lastUpdate: new Date().toISOString()
                         }));
                     } else {
-                        console.warn("Could not find price in quote object:", quote);
-                        throw new Error("Price data missing in API response");
+                        throw new Error("price data missing in response");
                     }
 
                 } catch (err) {
-                    console.error("Full Error Object:", err);
+                    console.error("Error:", err);
                     
-                    // Specific check for CORS (browser blocking)
+                    // Helpful message for CORS errors
                     if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
-                        setError("Network Error: The browser blocked this request (CORS). This is a limitation of the free API plan in browsers.");
+                        setError("network error: browser blocked request. try enabling 'use cors proxy' in settings.");
                     } else {
-                        setError(`Error: ${err.message}`);
+                        setError(`error: ${err.message}`);
                     }
                 } finally {
                     setIsLoading(false);
@@ -313,6 +324,19 @@
                                         onChange={(e) => setConfig({...config, currentPrice: parseFloat(e.target.value) || 0})}
                                     />
                                 </div>
+
+                                <div className="flex items-center gap-3 pt-2">
+                                    <input 
+                                        type="checkbox" 
+                                        id="useProxy"
+                                        checked={config.useProxy}
+                                        onChange={(e) => setConfig({...config, useProxy: e.target.checked})}
+                                        className="w-4 h-4 rounded border-zinc-700 bg-black text-emerald-500 focus:ring-0"
+                                    />
+                                    <label htmlFor="useProxy" className="text-xs text-zinc-400 lowercase-header select-none cursor-pointer">
+                                        use cors proxy (required for github pages)
+                                    </label>
+                                </div>
                                 
                                 <div className="pt-2">
                                     <button 
@@ -360,7 +384,7 @@
                     </div>
 
                     {error && (
-                        <div className="mt-4 p-3 border border-red-900/50 text-red-400 text-xs text-center font-mono">
+                        <div className="mt-4 p-3 border border-red-900/50 text-red-400 text-xs text-center font-mono lowercase-header">
                             {error}
                         </div>
                     )}
