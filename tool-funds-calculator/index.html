@@ -102,8 +102,7 @@
                     ticker: parsed.ticker || '0P0001BUP5.F',
                     currentPrice: parsed.currentPrice || 10.00,
                     lastUpdate: parsed.lastUpdate || null,
-                    // New Defaults
-                    dataSource: parsed.dataSource || 'yahoo_public', // Default to public API
+                    dataSource: parsed.dataSource || 'yahoo_public',
                     useProxy: parsed.useProxy !== undefined ? parsed.useProxy : true,
                     showDebug: parsed.showDebug || false
                 };
@@ -135,47 +134,36 @@
                 try {
                     let price = null;
 
-                    // --- STRATEGY 1: Public Yahoo Web Scraping (Most Robust for Static Sites) ---
+                    // --- STRATEGY 1: Public Yahoo API (Chart Endpoint) ---
+                    // This is the most robust public endpoint for funds.
                     if (config.dataSource === 'yahoo_public') {
-                        // We fetch the actual HTML page of the stock/fund via AllOrigins proxy
-                        // This bypasses API blocks because it looks like a browser request
-                        const targetUrl = `https://finance.yahoo.com/quote/${config.ticker}`;
-                        // Using 'get' instead of 'raw' to avoid some MIME type issues, gives us a JSON wrapper with contents
-                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                        // FIX: Use range=5d to ensure we get data for funds that update slowly (fixes "No data found")
+                        const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${config.ticker}?range=5d&interval=1d`;
                         
-                        log(`Fetching Page: ${proxyUrl}`);
+                        // Use ThingProxy by default for public API calls, as it handles direct forwarding well
+                        const proxyUrl = `https://thingproxy.freeboard.io/fetch/${targetUrl}`;
+                        
+                        log(`Fetching: ${proxyUrl}`);
                         const response = await fetch(proxyUrl);
                         
-                        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                        if (!response.ok) {
+                            const txt = await response.text();
+                            log(`HTTP Error Body: ${txt}`);
+                            throw new Error(`HTTP Error: ${response.status}`);
+                        }
+                        
                         const data = await response.json();
-                        
-                        if (!data.contents) throw new Error("Proxy returned empty content");
-                        
-                        const html = data.contents;
-                        log("Page HTML received (" + html.length + " chars)");
+                        log("Public API Data:", data);
 
-                        // Regex to find the price in the new Yahoo Finance layout
-                        // Matches: <fin-streamer ... data-field="regularMarketPrice" ... value="12.34">
-                        // Also checks for "regularMarketPrice":{"raw":12.34 ... inside script tags
-                        
-                        // Attempt 1: fin-streamer tag (Common in body)
-                        const streamerRegex = /data-field="regularMarketPrice"[^>]*value="([\d\.]+)"/i;
-                        const match1 = html.match(streamerRegex);
-
-                        // Attempt 2: Script JSON data (Backup)
-                        const scriptRegex = /"regularMarketPrice":\{"raw":([\d\.]+)/i;
-                        const match2 = html.match(scriptRegex);
-
-                        if (match1 && match1[1]) {
-                            price = match1[1];
-                            log("Found price via fin-streamer tag: " + price);
-                        } else if (match2 && match2[1]) {
-                            price = match2[1];
-                            log("Found price via script JSON: " + price);
+                        // Parse: chart.result[0].meta.regularMarketPrice
+                        if (data.chart && data.chart.result && data.chart.result.length > 0) {
+                            const meta = data.chart.result[0].meta;
+                            // Priority: regularMarketPrice -> previousClose -> chartPreviousClose
+                            price = meta.regularMarketPrice || meta.previousClose || meta.chartPreviousClose;
+                        } else if (data.chart && data.chart.error) {
+                             throw new Error(`Yahoo Error: ${data.chart.error.description || data.chart.error.code}`);
                         } else {
-                            // Last ditch: look for the specific meta tag or label
-                            // Sometimes Yahoo changes layout.
-                            throw new Error("Could not parse price from Yahoo Finance page HTML. Ticker might be wrong.");
+                            throw new Error("Invalid structure from Public API");
                         }
                     } 
                     
@@ -315,7 +303,7 @@
                                         onChange={(e) => setConfig({...config, dataSource: e.target.value})}
                                         className="min-input w-full px-3 py-2 text-sm rounded"
                                     >
-                                        <option value="yahoo_public">Public Yahoo (Web Scrape - Recommended)</option>
+                                        <option value="yahoo_public">Public Yahoo (Free/Proxy - Recommended)</option>
                                         <option value="rapidapi">RapidAPI (Requires Key)</option>
                                     </select>
                                 </div>
