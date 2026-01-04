@@ -119,6 +119,15 @@
             visibility: visible;
             opacity: 1;
         }
+
+        /* Share Feedback Animation */
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        .share-feedback {
+            animation: fadeOut 2s forwards;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-6 pb-32 max-w-3xl mx-auto">
@@ -127,9 +136,14 @@
     <header class="w-full mb-8 flex flex-col gap-4">
         <div class="flex justify-between items-center">
             <h1 class="text-3xl font-light lowercase-header tracking-tight">pc part picker</h1>
-            <button onclick="openSettings()" class="text-zinc-500 hover:text-white transition-colors" title="settings">
-                <i class="fa-solid fa-gear"></i>
-            </button>
+            <div class="flex gap-4">
+                <button onclick="shareCurrentBuild()" id="shareBtn" class="text-zinc-500 hover:text-white transition-colors relative" title="share build link">
+                    <i class="fa-solid fa-share-nodes"></i>
+                </button>
+                <button onclick="openSettings()" class="text-zinc-500 hover:text-white transition-colors" title="settings">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
         </div>
         <hr />
     </header>
@@ -271,9 +285,84 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             loadData();
+            checkForSharedLink(); // Check if this is a shared URL
             renderApp();
             partLinkInput.addEventListener('input', handleLinkInput);
         });
+
+        // --- Share & Link Logic ---
+        function shareCurrentBuild() {
+            const build = getActiveBuild();
+            if(!build || build.parts.length === 0) {
+                alert("Add some parts before sharing!");
+                return;
+            }
+
+            // Encode build data to base64 for URL
+            try {
+                const jsonStr = JSON.stringify(build);
+                // Use unescape+encodeURIComponent to handle Unicode (Euro symbol) correctly in btoa
+                const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
+                
+                const baseUrl = window.location.href.split('?')[0];
+                const shareUrl = `${baseUrl}?build=${encoded}`;
+
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    const btn = document.getElementById('shareBtn');
+                    const originalHTML = btn.innerHTML;
+                    
+                    // Show feedback
+                    btn.innerHTML = '<i class="fa-solid fa-check text-green-500"></i>';
+                    
+                    // Add floating label
+                    const label = document.createElement('div');
+                    label.textContent = 'link copied!';
+                    label.className = 'absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] text-green-500 whitespace-nowrap share-feedback';
+                    btn.appendChild(label);
+
+                    setTimeout(() => {
+                        btn.innerHTML = originalHTML;
+                    }, 2000);
+                });
+            } catch(e) {
+                console.error("Encoding failed", e);
+                alert("Failed to generate link");
+            }
+        }
+
+        function checkForSharedLink() {
+            const params = new URLSearchParams(window.location.search);
+            const encodedBuild = params.get('build');
+
+            if (encodedBuild) {
+                try {
+                    // Decode
+                    const jsonStr = decodeURIComponent(escape(window.atob(encodedBuild)));
+                    const sharedBuild = JSON.parse(jsonStr);
+
+                    if (sharedBuild && Array.isArray(sharedBuild.parts)) {
+                        // Give it a unique ID so it doesn't clash
+                        sharedBuild.id = 'import_' + Date.now();
+                        sharedBuild.name = `shared: ${sharedBuild.name}`;
+
+                        // Add to builds
+                        appData.builds.push(sharedBuild);
+                        appData.activeBuildId = sharedBuild.id;
+                        
+                        saveData();
+                        
+                        // Clean URL without refresh
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                        
+                        // Alert user (optional, but good for UX)
+                        // setTimeout(() => alert(`Imported build: ${sharedBuild.name}`), 100);
+                    }
+                } catch (e) {
+                    console.error("Import failed", e);
+                    alert("Invalid share link");
+                }
+            }
+        }
 
         // --- Tweakers Auto Fetch & Rotation Logic ---
         let fetchTimeout;
