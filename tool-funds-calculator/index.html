@@ -102,8 +102,9 @@
                     ticker: parsed.ticker || '0P0001BUP5.F',
                     currentPrice: parsed.currentPrice || 10.00,
                     lastUpdate: parsed.lastUpdate || null,
+                    // New Defaults
+                    dataSource: parsed.dataSource || 'yahoo_public', // Default to public API
                     useProxy: parsed.useProxy !== undefined ? parsed.useProxy : true,
-                    proxyService: parsed.proxyService || 'thingproxy', // Default to thingproxy
                     showDebug: parsed.showDebug || false
                 };
             });
@@ -126,81 +127,78 @@
             };
 
             const fetchYahooPrice = async () => {
-                if (!config.apiKey) {
-                    setError("please add your api key in settings");
-                    setShowSettings(true);
-                    return;
-                }
-
                 setIsLoading(true);
                 setError(null);
-                setDebugLog([]); // Clear log on new fetch
-                log("Starting fetch...");
-
-                const options = {
-                    method: 'GET',
-                    headers: {
-                        'X-RapidAPI-Key': config.apiKey,
-                        'X-RapidAPI-Host': 'yahoo-finance15.p.rapidapi.com'
-                    }
-                };
-
-                // Proxy Selection Logic
-                const targetUrl = `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${encodeURIComponent(config.ticker)}`;
-                let finalUrl = targetUrl;
-
-                if (config.useProxy) {
-                    if (config.proxyService === 'corsproxy') {
-                        finalUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-                    } else if (config.proxyService === 'thingproxy') {
-                        finalUrl = `https://thingproxy.freeboard.io/fetch/${targetUrl}`;
-                    }
-                }
+                setDebugLog([]); // Clear log
+                log(`Starting fetch... Source: ${config.dataSource}`);
 
                 try {
-                    log(`Proxy: ${config.useProxy ? config.proxyService : 'Disabled'}`);
-                    log(`Target: ${targetUrl}`);
-                    log(`Final URL: ${finalUrl}`);
-                    
-                    const response = await fetch(finalUrl, options);
-                    log(`Response Status: ${response.status} ${response.statusText}`);
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        log(`Error Body: ${errorText}`);
+                    let price = null;
+
+                    // --- STRATEGY 1: Public Yahoo API (No Key Needed) ---
+                    if (config.dataSource === 'yahoo_public') {
+                        // FIX: Switched from /chart to /quote endpoint which is more reliable for funds
+                        const targetUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${config.ticker}`;
+                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
                         
-                        // Handle Proxy Errors vs API Errors
-                        if (errorText.includes("corsproxy")) throw new Error("Proxy Error: corsproxy.io rejected request. Try ThingProxy.");
-                        if (response.status === 403) throw new Error("403 Forbidden (Check API Key or Proxy)");
-                        if (response.status === 429) throw new Error("429 Too Many Requests");
-                        if (response.status === 0) throw new Error("Network Error (CORS Blocked?)");
-                        throw new Error(`API Status ${response.status}`);
+                        log(`Fetching: ${proxyUrl}`);
+                        const response = await fetch(proxyUrl);
+                        
+                        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                        const data = await response.json();
+                        log("Public API Data:", data);
+
+                        // Parse path: quoteResponse.result[0].regularMarketPrice
+                        if (data.quoteResponse && data.quoteResponse.result && data.quoteResponse.result.length > 0) {
+                            const result = data.quoteResponse.result[0];
+                            price = result.regularMarketPrice || result.price || result.close;
+                        } else {
+                            throw new Error("Symbol not found in Yahoo Database");
+                        }
+                    } 
+                    
+                    // --- STRATEGY 2: RapidAPI (YH Finance) ---
+                    else {
+                        if (!config.apiKey) throw new Error("API Key missing for RapidAPI");
+                        
+                        const targetUrl = `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${encodeURIComponent(config.ticker)}`;
+                        
+                        const finalUrl = config.useProxy 
+                            ? `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+                            : targetUrl;
+
+                        log(`Fetching RapidAPI: ${finalUrl}`);
+                        
+                        const response = await fetch(finalUrl, {
+                            method: 'GET',
+                            headers: {
+                                'X-RapidAPI-Key': config.apiKey,
+                                'X-RapidAPI-Host': 'yahoo-finance15.p.rapidapi.com'
+                            }
+                        });
+
+                        if (!response.ok) {
+                             const txt = await response.text();
+                             log("Error Body:", txt);
+                             throw new Error(`RapidAPI Error: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        log("RapidAPI Data:", data);
+                        
+                        let quote = null;
+                        if (data.body && data.body[0]) quote = data.body[0];
+                        else if (data.quoteResponse && data.quoteResponse.result) quote = data.quoteResponse.result[0];
+                        
+                        if (quote) {
+                            price = quote.regularMarketPrice || quote.price || quote.close;
+                        }
                     }
 
-                    const data = await response.json();
-                    log("Data received", data);
-                    
-                    // --- Parsing Logic ---
-                    let quote = null;
-
-                    if (data.body && Array.isArray(data.body) && data.body.length > 0) {
-                        quote = data.body[0];
-                    } else if (Array.isArray(data) && data.length > 0) {
-                         quote = data[0];
-                    } else if (data.quoteResponse && data.quoteResponse.result) {
-                        quote = data.quoteResponse.result[0];
-                    } else if (typeof data === 'object') {
-                         quote = data; 
-                    }
-                    
-                    if (!quote) throw new Error("Empty data structure received");
-
-                    // Check for price fields
-                    const price = quote.regularMarketPrice || quote.price || quote.close || quote.preMarketPrice;
-
+                    // --- Update State ---
                     if (price !== undefined && price !== null) {
                         const newPrice = parseFloat(price);
-                        log(`Price found: ${newPrice}`);
+                        log(`Success! Price: ${newPrice}`);
                         
                         setConfig(prev => ({
                             ...prev,
@@ -208,20 +206,14 @@
                             lastUpdate: new Date().toISOString()
                         }));
                     } else {
-                        throw new Error("Price field missing in response");
+                        throw new Error("Price not found in response");
                     }
 
                 } catch (err) {
                     log(`EXCEPTION: ${err.message}`);
-                    
-                    if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
-                        setError("network error: browser blocked request. try checking proxy settings.");
-                    } else {
-                        setError(`error: ${err.message}`);
-                    }
+                    setError(err.message);
                 } finally {
                     setIsLoading(false);
-                    log("Fetch complete");
                 }
             };
 
@@ -292,16 +284,33 @@
                         <div className="p-6 border border-zinc-800 bg-black animate-in fade-in slide-in-from-top-2">
                             <h2 className="text-sm font-medium text-white mb-4 lowercase-header">configuration</h2>
                             <div className="space-y-4">
+                                
+                                {/* Data Source Selector */}
                                 <div>
-                                    <label className="text-xs text-zinc-500 lowercase-header block mb-2">rapidapi key</label>
-                                    <input 
-                                        type="password" 
-                                        placeholder="paste key here..."
+                                    <label className="text-xs text-zinc-500 lowercase-header block mb-2">data source</label>
+                                    <select 
+                                        value={config.dataSource}
+                                        onChange={(e) => setConfig({...config, dataSource: e.target.value})}
                                         className="min-input w-full px-3 py-2 text-sm rounded"
-                                        value={config.apiKey}
-                                        onChange={(e) => setConfig({...config, apiKey: e.target.value})}
-                                    />
+                                    >
+                                        <option value="yahoo_public">Public Yahoo API (No Key - Recommended)</option>
+                                        <option value="rapidapi">RapidAPI (Requires Key)</option>
+                                    </select>
                                 </div>
+
+                                {config.dataSource === 'rapidapi' && (
+                                    <div>
+                                        <label className="text-xs text-zinc-500 lowercase-header block mb-2">rapidapi key</label>
+                                        <input 
+                                            type="password" 
+                                            placeholder="paste key here..."
+                                            className="min-input w-full px-3 py-2 text-sm rounded"
+                                            value={config.apiKey}
+                                            onChange={(e) => setConfig({...config, apiKey: e.target.value})}
+                                        />
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="text-xs text-zinc-500 lowercase-header block mb-2">ticker symbol</label>
                                     <input 
@@ -312,6 +321,7 @@
                                         onChange={(e) => setConfig({...config, ticker: e.target.value})}
                                     />
                                 </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-xs text-zinc-500 lowercase-header block mb-2">shares</label>
@@ -334,7 +344,7 @@
                                 </div>
 
                                 <div>
-                                    <label className="text-xs text-zinc-500 lowercase-header block mb-2">current price (€) [Manual]</label>
+                                    <label className="text-xs text-zinc-500 lowercase-header block mb-2">current price (€) [Manual Override]</label>
                                     <input 
                                         type="number" 
                                         step="0.01"
@@ -345,33 +355,6 @@
                                 </div>
 
                                 <div className="border-t border-zinc-800 pt-3">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <input 
-                                            type="checkbox" 
-                                            id="useProxy"
-                                            checked={config.useProxy}
-                                            onChange={(e) => setConfig({...config, useProxy: e.target.checked})}
-                                            className="w-4 h-4 rounded border-zinc-700 bg-black text-emerald-500 focus:ring-0"
-                                        />
-                                        <label htmlFor="useProxy" className="text-xs text-zinc-400 lowercase-header select-none cursor-pointer">
-                                            use cors proxy
-                                        </label>
-                                    </div>
-
-                                    {config.useProxy && (
-                                        <div className="mb-3">
-                                            <label className="text-xs text-zinc-500 lowercase-header block mb-1 ml-7">proxy service</label>
-                                            <select 
-                                                value={config.proxyService}
-                                                onChange={(e) => setConfig({...config, proxyService: e.target.value})}
-                                                className="min-input w-full ml-7 w-[calc(100%-1.75rem)] px-2 py-1 text-xs rounded"
-                                            >
-                                                <option value="thingproxy">ThingProxy (Recommended)</option>
-                                                <option value="corsproxy">CorsProxy.io (Limit Issues)</option>
-                                            </select>
-                                        </div>
-                                    )}
-
                                     <div className="flex items-center gap-3">
                                         <input 
                                             type="checkbox" 
