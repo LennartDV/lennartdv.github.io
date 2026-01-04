@@ -275,13 +275,13 @@
             partLinkInput.addEventListener('input', handleLinkInput);
         });
 
-        // --- Tweakers Auto Fetch ---
+        // --- Tweakers Auto Fetch & Rotation Logic ---
         let fetchTimeout;
+        
         function handleLinkInput(e) {
             const url = e.target.value.trim();
             clearTimeout(fetchTimeout);
             
-            // Visual reset
             fetchStatus.querySelector('i').className = 'fa-solid fa-link text-zinc-500';
             fetchTooltip.textContent = "auto-fetch ready";
 
@@ -301,147 +301,194 @@
             fetchStatus.prepend(loader);
             fetchTooltip.textContent = "fetching...";
 
-            try {
-                // Using AllOrigins as proxy with cache buster
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&disableCache=true`;
-                
-                const response = await fetch(proxyUrl);
-                const data = await response.json();
-                
-                if (!data.contents) throw new Error("No content");
-
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(data.contents, "text/html");
-
-                // --- 1. Check for Cookie Wall / Bot Check ---
-                const pageTitle = doc.title.toLowerCase();
-                const bodyText = doc.body.innerText.toLowerCase();
-                if (pageTitle.includes('cookie') || pageTitle.includes('consent') || bodyText.includes('cookies op tweakers')) {
-                    throw { type: 'cookie' };
+            // PROXY ROTATION STRATEGY
+            // 1. CorsProxy.io (Fast, often bypasses basic checks)
+            // 2. AllOrigins (Fallback, robust JSONP-style but often hit by Cloudflare)
+            const proxies = [
+                {
+                    name: 'corsproxy',
+                    url: (target) => `https://corsproxy.io/?${encodeURIComponent(target)}`,
+                    type: 'html'
+                },
+                {
+                    name: 'allorigins',
+                    url: (target) => `https://api.allorigins.win/get?url=${encodeURIComponent(target)}&disableCache=true`,
+                    type: 'json'
                 }
+            ];
 
-                // --- 2. Title Extraction ---
-                const titleSelectors = ['h1', 'meta[property="og:title"]', '.product-header__title', '.entity-header__title'];
-                let name = "";
-                for (const sel of titleSelectors) {
-                    const el = doc.querySelector(sel);
-                    if (el) {
-                        name = (sel.startsWith('meta') ? el.content : el.innerText)
-                            .replace(/ - Kenmerken - Tweakers| - Prijzen - Tweakers| - Tweakers/g, '')
-                            .trim();
-                        if (name) break;
+            let lastError = null;
+
+            for (const proxy of proxies) {
+                try {
+                    console.log(`Trying proxy: ${proxy.name}`);
+                    const res = await fetch(proxy.url(url));
+                    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+
+                    let htmlContent = "";
+                    if (proxy.type === 'json') {
+                        const data = await res.json();
+                        if (!data.contents) throw new Error("No content in JSON");
+                        htmlContent = data.contents;
+                    } else {
+                        htmlContent = await res.text();
                     }
-                }
 
-                // --- 3. Price Extraction Strategies ---
-                let rawPrice = "";
-                
-                // Strategy A: Metadata (Most reliable)
-                const metaPrice = doc.querySelector('meta[itemprop="price"]');
-                if (metaPrice) rawPrice = metaPrice.content;
-
-                // Strategy B: JSON-LD (Script tags) - Robust for modern SPA/Dynamic sites
-                if (!rawPrice) {
-                    const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-                    for (const script of scripts) {
-                        try {
-                            const json = JSON.parse(script.innerText);
-                            if (json['@type'] === 'Product' && json.offers) {
-                                if (json.offers.price) {
-                                    rawPrice = json.offers.price;
-                                    break;
-                                }
-                                if (json.offers.lowPrice) {
-                                    rawPrice = json.offers.lowPrice;
-                                    break;
-                                }
-                                if (Array.isArray(json.offers)) {
-                                     const offer = json.offers.find(o => o.price || o.lowPrice);
-                                     if(offer) {
-                                         rawPrice = offer.price || offer.lowPrice;
-                                         break;
-                                     }
-                                }
-                            }
-                        } catch(e) { /* ignore parse errors */ }
-                    }
-                }
-
-                // Strategy C: Visual Elements (Visual Fallbacks)
-                if (!rawPrice) {
-                    const priceSelectors = [
-                        '.best-price-summary__price', 
-                        '.price-summary__price', 
-                        '.shop-price', 
-                        '.poster__price',
-                        '.entity-header__price', 
-                        'td.price'
-                    ];
-                    for (const sel of priceSelectors) {
-                        const el = doc.querySelector(sel);
-                        if (el) {
-                            rawPrice = el.innerText;
-                            break;
-                        }
-                    }
-                }
-
-                // Strategy D: Meta Description Regex (Fallback)
-                if (!rawPrice) {
-                    const metaDesc = doc.querySelector('meta[name="description"]')?.content;
-                    if (metaDesc) {
-                        const match = metaDesc.match(/(?:voor|vanaf)\s*€\s*([\d.,]+)/i);
-                        if (match && match[1]) {
-                            rawPrice = match[1];
-                        } else if (metaDesc.toLowerCase().includes('wordt verwacht') || metaDesc.toLowerCase().includes('geen prijzen')) {
-                            throw { type: 'expected' };
-                        }
-                    }
-                }
-
-                // --- 4. Process Price ---
-                if (rawPrice) {
-                    // Normalize: remove € and whitespace
-                    let clean = rawPrice.toString().replace(/[€\s]/g, '');
-                    // Handle Dutch notation: "1.234,-" -> "1.234.00"
-                    if (clean.endsWith(',-')) clean = clean.replace(',-', '.00');
-                    // Handle Dutch notation: dots are thousands, comma is decimal
-                    clean = clean.replace(/\./g, '').replace(',', '.'); 
+                    // --- PARSING & VALIDATION ---
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlContent, "text/html");
                     
-                    const price = parseFloat(clean);
+                    // CHECK FOR CLOUDFLARE / BOT BLOCK
+                    const pageTitle = doc.title.toLowerCase();
+                    const bodyText = doc.body.innerText.toLowerCase();
                     
-                    if (!isNaN(price)) {
-                        document.getElementById('partPrice').value = price;
+                    if (
+                        pageTitle.includes('just a moment') || 
+                        pageTitle.includes('attention required') || 
+                        pageTitle.includes('access denied') ||
+                        bodyText.includes('checking your browser') ||
+                        bodyText.includes('cloudflare')
+                    ) {
+                        console.warn(`Blocked by Cloudflare via ${proxy.name}`);
+                        throw { type: 'cloudflare' }; // Trigger rotation to next proxy
+                    }
+
+                    if (pageTitle.includes('cookie') || pageTitle.includes('consent') || bodyText.includes('cookies op tweakers')) {
+                        throw { type: 'cookie' }; // Cookie wall is a hard stop usually, but maybe next proxy has different IP?
+                    }
+
+                    // --- SUCCESSFUL HTML RETRIEVAL ---
+                    const result = parseTweakersHTML(doc);
+                    
+                    if (result.price) {
+                        // Apply Data
+                        document.getElementById('partPrice').value = result.price;
                         if (document.getElementById('partName').value === "") {
-                            document.getElementById('partName').value = name.toLowerCase();
+                            document.getElementById('partName').value = result.name.toLowerCase();
                         }
                         
                         loader.remove();
                         icon.className = 'fa-solid fa-circle-check text-green-500';
-                        fetchTooltip.textContent = "price found!";
-                        return;
+                        fetchTooltip.textContent = `found via ${proxy.name}`;
+                        return; // EXIT FUNCTION ON SUCCESS
+                    } else if (result.isExpected) {
+                        throw { type: 'expected' };
+                    }
+                    
+                    // If we got HTML but no price, try next proxy just in case layout was mangled
+                    throw { type: 'noprice' };
+
+                } catch (e) {
+                    console.error(`Proxy ${proxy.name} failed:`, e);
+                    lastError = e;
+                    // Loop continues to next proxy...
+                }
+            }
+
+            // --- ALL PROXIES FAILED ---
+            loader.remove();
+            if (lastError.type === 'cookie') {
+                icon.className = 'fa-solid fa-cookie-bite text-orange-500';
+                fetchTooltip.textContent = "blocked by cookie wall";
+            } else if (lastError.type === 'expected') {
+                icon.className = 'fa-regular fa-clock text-blue-400';
+                fetchTooltip.textContent = "coming soon (no price)";
+            } else if (lastError.type === 'cloudflare') {
+                icon.className = 'fa-solid fa-shield-halved text-orange-500';
+                fetchTooltip.textContent = "blocked by cloudflare";
+            } else if (lastError.type === 'noprice') {
+                icon.className = 'fa-solid fa-triangle-exclamation text-yellow-500';
+                fetchTooltip.textContent = "price not found";
+            } else {
+                icon.className = 'fa-solid fa-circle-xmark text-red-500';
+                fetchTooltip.textContent = "network/proxy error";
+            }
+        }
+
+        function parseTweakersHTML(doc) {
+            // Title Extraction
+            const titleSelectors = ['h1', 'meta[property="og:title"]', '.product-header__title', '.entity-header__title'];
+            let name = "";
+            for (const sel of titleSelectors) {
+                const el = doc.querySelector(sel);
+                if (el) {
+                    name = (sel.startsWith('meta') ? el.content : el.innerText)
+                        .replace(/ - Kenmerken - Tweakers| - Prijzen - Tweakers| - Tweakers/g, '')
+                        .trim();
+                    if (name) break;
+                }
+            }
+
+            // Price Extraction
+            let rawPrice = "";
+            let isExpected = false;
+
+            // Strategy A: Metadata
+            const metaPrice = doc.querySelector('meta[itemprop="price"]');
+            if (metaPrice) rawPrice = metaPrice.content;
+
+            // Strategy B: JSON-LD
+            if (!rawPrice) {
+                const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+                for (const script of scripts) {
+                    try {
+                        const json = JSON.parse(script.innerText);
+                        if (json['@type'] === 'Product' && json.offers) {
+                            if (json.offers.price) rawPrice = json.offers.price;
+                            else if (json.offers.lowPrice) rawPrice = json.offers.lowPrice;
+                            else if (Array.isArray(json.offers)) {
+                                const offer = json.offers.find(o => o.price || o.lowPrice);
+                                if(offer) rawPrice = offer.price || offer.lowPrice;
+                            }
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            // Strategy C: Visual
+            if (!rawPrice) {
+                const priceSelectors = ['.best-price-summary__price', '.price-summary__price', '.shop-price', '.poster__price', '.entity-header__price', 'td.price'];
+                for (const sel of priceSelectors) {
+                    const el = doc.querySelector(sel);
+                    if (el) { rawPrice = el.innerText; break; }
+                }
+            }
+
+            // Strategy D: Description
+            if (!rawPrice) {
+                const metaDesc = doc.querySelector('meta[name="description"]')?.content;
+                if (metaDesc) {
+                    const match = metaDesc.match(/(?:voor|vanaf)\s*€\s*([\d.,]+)/i);
+                    if (match && match[1]) rawPrice = match[1];
+                    else if (metaDesc.toLowerCase().includes('wordt verwacht') || metaDesc.toLowerCase().includes('geen prijzen')) {
+                        isExpected = true;
                     }
                 }
-                
-                throw { type: 'noprice' };
-
-            } catch (e) {
-                loader.remove();
-                if (e.type === 'cookie') {
-                    icon.className = 'fa-solid fa-cookie-bite text-orange-500';
-                    fetchTooltip.textContent = "blocked by cookie wall";
-                } else if (e.type === 'expected') {
-                    icon.className = 'fa-regular fa-clock text-blue-400';
-                    fetchTooltip.textContent = "coming soon (no price)";
-                } else if (e.type === 'noprice') {
-                    icon.className = 'fa-solid fa-triangle-exclamation text-yellow-500';
-                    fetchTooltip.textContent = "price not found on page";
-                } else {
-                    icon.className = 'fa-solid fa-circle-xmark text-red-500';
-                    fetchTooltip.textContent = "network error";
-                }
-                console.error(e);
             }
+
+            let finalPrice = null;
+            if (rawPrice) {
+                let clean = rawPrice.toString().replace(/[€\s]/g, '');
+                
+                // FIXED PARSING LOGIC FOR "2 Zeros" ISSUE
+                if (clean.includes(',-')) {
+                    // Dutch Integer Format: 1.299,-
+                    clean = clean.replace(',-', ''); // Remove suffix: 1.299
+                    clean = clean.replace(/\./g, ''); // Remove thousands dots: 1299
+                } else if (clean.includes(',')) {
+                    // Dutch Decimal Format: 1.299,95
+                    clean = clean.replace(/\./g, ''); // Remove thousands dots: 1299,95
+                    clean = clean.replace(',', '.');  // Decimal: 1299.95
+                } else {
+                    // Standard Format: 1299.95 or 1299 (JSON-LD)
+                    // Do not strip dots, they are decimals here
+                }
+
+                const p = parseFloat(clean);
+                if (!isNaN(p)) finalPrice = p;
+            }
+
+            return { name, price: finalPrice, isExpected };
         }
 
         // --- App Logic ---
