@@ -90,22 +90,25 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
+        const DEFAULT_CONFIG = {
+            apiKey: '',
+            shares: 100,
+            initialCost: 1000.00,
+            ticker: '0P0001CGPV.F', // Updated to the correct fund
+            currentPrice: 10.00,
+            lastUpdate: null,
+            assetName: 'Portfolio Asset',
+            dataSource: 'yahoo_public',
+            useProxy: true,
+            showDebug: false
+        };
+
         function App() {
             // State
             const [config, setConfig] = useState(() => {
                 const saved = localStorage.getItem('yh_fund_config');
                 const parsed = saved ? JSON.parse(saved) : {};
-                return {
-                    apiKey: parsed.apiKey || '',
-                    shares: parsed.shares || 100,
-                    initialCost: parsed.initialCost || 1000.00,
-                    ticker: parsed.ticker || '0P0001BUP5.F',
-                    currentPrice: parsed.currentPrice || 10.00,
-                    lastUpdate: parsed.lastUpdate || null,
-                    dataSource: parsed.dataSource || 'yahoo_public',
-                    useProxy: parsed.useProxy !== undefined ? parsed.useProxy : true,
-                    showDebug: parsed.showDebug || false
-                };
+                return { ...DEFAULT_CONFIG, ...parsed };
             });
 
             const [showSettings, setShowSettings] = useState(false);
@@ -125,6 +128,14 @@
                 setDebugLog(prev => [newEntry, ...prev].slice(0, 50));
             };
 
+            const resetDefaults = () => {
+                if(confirm("Reset all settings to default?")) {
+                    setConfig(DEFAULT_CONFIG);
+                    setError(null);
+                    setDebugLog([]);
+                }
+            };
+
             const fetchYahooPrice = async () => {
                 setIsLoading(true);
                 setError(null);
@@ -133,13 +144,14 @@
 
                 try {
                     let price = null;
+                    let name = null;
 
                     // --- STRATEGY 1: Public Yahoo API (Chart Endpoint + AllOrigins) ---
                     if (config.dataSource === 'yahoo_public') {
-                        // range=5d to ensure data availability
+                        // range=5d to ensure data availability for funds that don't update daily
                         const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${config.ticker}?range=5d&interval=1d`;
                         
-                        // Switching to AllOrigins proxy
+                        // Using AllOrigins as it handles the JSON response wrapping cleanly
                         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
                         
                         log(`Fetching: ${proxyUrl}`);
@@ -151,7 +163,6 @@
                         
                         const proxyData = await response.json();
                         
-                        // AllOrigins wraps the actual response text in a 'contents' string
                         if (!proxyData.contents) throw new Error("Proxy returned empty content");
                         
                         let data;
@@ -164,11 +175,12 @@
                         
                         log("Public API Data:", data);
 
-                        // Parse: chart.result[0].meta.regularMarketPrice
+                        // Parse: chart.result[0].meta
                         if (data.chart && data.chart.result && data.chart.result.length > 0) {
                             const meta = data.chart.result[0].meta;
                             // Priority: regularMarketPrice -> previousClose -> chartPreviousClose
                             price = meta.regularMarketPrice || meta.previousClose || meta.chartPreviousClose;
+                            name = meta.shortName || meta.longName || meta.symbol;
                         } else if (data.chart && data.chart.error) {
                              throw new Error(`Yahoo Error: ${data.chart.error.description || data.chart.error.code}`);
                         } else {
@@ -182,7 +194,6 @@
                         
                         const targetUrl = `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${encodeURIComponent(config.ticker)}`;
                         
-                        // For RapidAPI keys, corsproxy is safer than allorigins (which strips headers)
                         const finalUrl = config.useProxy 
                             ? `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
                             : targetUrl;
@@ -212,17 +223,19 @@
                         
                         if (quote) {
                             price = quote.regularMarketPrice || quote.price || quote.close;
+                            name = quote.shortName || quote.longName || quote.symbol;
                         }
                     }
 
                     // --- Update State ---
                     if (price !== undefined && price !== null) {
                         const newPrice = parseFloat(price);
-                        log(`Success! Price: ${newPrice}`);
+                        log(`Success! Price: ${newPrice}, Name: ${name}`);
                         
                         setConfig(prev => ({
                             ...prev,
                             currentPrice: newPrice,
+                            assetName: name || prev.assetName,
                             lastUpdate: new Date().toISOString()
                         }));
                     } else {
@@ -302,7 +315,13 @@
                     {/* Settings Panel */}
                     {showSettings && (
                         <div className="p-6 border border-zinc-800 bg-black animate-in fade-in slide-in-from-top-2">
-                            <h2 className="text-sm font-medium text-white mb-4 lowercase-header">configuration</h2>
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-sm font-medium text-white lowercase-header">configuration</h2>
+                                <button onClick={resetDefaults} className="text-[10px] text-red-400 hover:text-red-300 underline">
+                                    reset defaults
+                                </button>
+                            </div>
+
                             <div className="space-y-4">
                                 
                                 {/* Data Source Selector */}
@@ -335,7 +354,7 @@
                                     <label className="text-xs text-zinc-500 lowercase-header block mb-2">ticker symbol</label>
                                     <input 
                                         type="text" 
-                                        placeholder="e.g. AAPL, 0P0001BUP5.F"
+                                        placeholder="e.g. 0P0001CGPV.F"
                                         className="min-input w-full px-3 py-2 text-sm rounded uppercase"
                                         value={config.ticker}
                                         onChange={(e) => setConfig({...config, ticker: e.target.value})}
@@ -417,7 +436,7 @@
                     <div className="flex flex-col gap-4">
                         <div className="flex justify-between items-start">
                             <div>
-                                <h3 className="font-medium text-lg lowercase-header text-white">portfolio asset</h3>
+                                <h3 className="font-medium text-lg lowercase-header text-white">{config.assetName}</h3>
                                 <p className="text-xs text-zinc-500 font-mono mt-1">{config.ticker}</p>
                             </div>
                             <div className="text-right">
