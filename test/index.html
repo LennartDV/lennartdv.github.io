@@ -89,6 +89,36 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        /* Tooltip container */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip-container .tooltip-text {
+            visibility: hidden;
+            width: 120px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            padding: 4px 0;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%; /* Position above */
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 10px;
+            pointer-events: none;
+        }
+        
+        .tooltip-container:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-6 pb-32 max-w-3xl mx-auto">
@@ -143,8 +173,9 @@
                     <div class="w-2/3 relative">
                         <input type="text" id="partLink" placeholder="paste tweakers link to autofill"
                             class="min-input w-full px-3 py-2 text-sm placeholder-zinc-600 pr-10">
-                        <div id="fetchStatus" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs flex items-center">
+                        <div id="fetchStatus" class="tooltip-container absolute right-3 top-1/2 -translate-y-1/2 text-xs flex items-center cursor-help">
                             <i class="fa-solid fa-link text-zinc-500"></i>
+                            <span id="fetchTooltip" class="tooltip-text">auto-fetch ready</span>
                         </div>
                     </div>
                 </div>
@@ -235,6 +266,7 @@
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         const editModeIndicator = document.getElementById('editModeIndicator');
         const fetchStatus = document.getElementById('fetchStatus');
+        const fetchTooltip = document.getElementById('fetchTooltip');
         const partLinkInput = document.getElementById('partLink');
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -248,57 +280,134 @@
         function handleLinkInput(e) {
             const url = e.target.value.trim();
             clearTimeout(fetchTimeout);
+            
+            // Visual reset
+            fetchStatus.querySelector('i').className = 'fa-solid fa-link text-zinc-500';
+            fetchTooltip.textContent = "auto-fetch ready";
+
             if (url.includes('tweakers.net/pricewatch')) {
                 fetchTimeout = setTimeout(() => fetchTweakersData(url), 600);
-            } else {
-                fetchStatus.innerHTML = '<i class="fa-solid fa-link text-zinc-500"></i>';
             }
         }
 
         async function fetchTweakersData(url) {
-            fetchStatus.innerHTML = '<div class="loader"></div>';
+            const icon = fetchStatus.querySelector('i');
+            
+            // Set loading state
+            icon.className = ''; 
+            fetchStatus.querySelector('div')?.remove(); 
+            const loader = document.createElement('div');
+            loader.className = 'loader';
+            fetchStatus.prepend(loader);
+            fetchTooltip.textContent = "fetching...";
+
             try {
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                // Using AllOrigins as proxy with cache buster
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&disableCache=true`;
+                
                 const response = await fetch(proxyUrl);
                 const data = await response.json();
-                if (!data.contents) throw new Error();
+                
+                if (!data.contents) throw new Error("No content");
 
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(data.contents, "text/html");
 
-                // Title Extraction
-                const titleSelectors = ['h1', 'meta[property="og:title"]', '.product-header__title'];
+                // --- 1. Check for Cookie Wall / Bot Check ---
+                const pageTitle = doc.title.toLowerCase();
+                const bodyText = doc.body.innerText.toLowerCase();
+                if (pageTitle.includes('cookie') || pageTitle.includes('consent') || bodyText.includes('cookies op tweakers')) {
+                    throw { type: 'cookie' };
+                }
+
+                // --- 2. Title Extraction ---
+                const titleSelectors = ['h1', 'meta[property="og:title"]', '.product-header__title', '.entity-header__title'];
                 let name = "";
                 for (const sel of titleSelectors) {
                     const el = doc.querySelector(sel);
                     if (el) {
-                        name = (sel.startsWith('meta') ? el.content : el.innerText).replace(' - Kenmerken - Tweakers', '').replace(' - Prijzen - Tweakers', '').trim();
-                        break;
+                        name = (sel.startsWith('meta') ? el.content : el.innerText)
+                            .replace(/ - Kenmerken - Tweakers| - Prijzen - Tweakers| - Tweakers/g, '')
+                            .trim();
+                        if (name) break;
                     }
                 }
 
-                // Price Extraction
-                const priceSelectors = [
-                    'meta[itemprop="price"]',
-                    '.best-price-summary__price',
-                    '.price-summary__price',
-                    '.shop-price',
-                    '.poster__price'
-                ];
+                // --- 3. Price Extraction Strategies ---
                 let rawPrice = "";
-                for (const sel of priceSelectors) {
-                    const el = doc.querySelector(sel);
-                    if (el) {
-                        rawPrice = sel.startsWith('meta') ? el.content : el.innerText;
-                        break;
+                
+                // Strategy A: Metadata (Most reliable)
+                const metaPrice = doc.querySelector('meta[itemprop="price"]');
+                if (metaPrice) rawPrice = metaPrice.content;
+
+                // Strategy B: JSON-LD (Script tags) - Robust for modern SPA/Dynamic sites
+                if (!rawPrice) {
+                    const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+                    for (const script of scripts) {
+                        try {
+                            const json = JSON.parse(script.innerText);
+                            if (json['@type'] === 'Product' && json.offers) {
+                                if (json.offers.price) {
+                                    rawPrice = json.offers.price;
+                                    break;
+                                }
+                                if (json.offers.lowPrice) {
+                                    rawPrice = json.offers.lowPrice;
+                                    break;
+                                }
+                                if (Array.isArray(json.offers)) {
+                                     const offer = json.offers.find(o => o.price || o.lowPrice);
+                                     if(offer) {
+                                         rawPrice = offer.price || offer.lowPrice;
+                                         break;
+                                     }
+                                }
+                            }
+                        } catch(e) { /* ignore parse errors */ }
                     }
                 }
 
+                // Strategy C: Visual Elements (Visual Fallbacks)
+                if (!rawPrice) {
+                    const priceSelectors = [
+                        '.best-price-summary__price', 
+                        '.price-summary__price', 
+                        '.shop-price', 
+                        '.poster__price',
+                        '.entity-header__price', 
+                        'td.price'
+                    ];
+                    for (const sel of priceSelectors) {
+                        const el = doc.querySelector(sel);
+                        if (el) {
+                            rawPrice = el.innerText;
+                            break;
+                        }
+                    }
+                }
+
+                // Strategy D: Meta Description Regex (Fallback)
+                if (!rawPrice) {
+                    const metaDesc = doc.querySelector('meta[name="description"]')?.content;
+                    if (metaDesc) {
+                        const match = metaDesc.match(/(?:voor|vanaf)\s*€\s*([\d.,]+)/i);
+                        if (match && match[1]) {
+                            rawPrice = match[1];
+                        } else if (metaDesc.toLowerCase().includes('wordt verwacht') || metaDesc.toLowerCase().includes('geen prijzen')) {
+                            throw { type: 'expected' };
+                        }
+                    }
+                }
+
+                // --- 4. Process Price ---
                 if (rawPrice) {
-                    // Normalize Dutch price formats: "1.234,56", "1.234,-", "€ 1.234"
-                    let clean = rawPrice.replace(/[€\s]/g, '');
+                    // Normalize: remove € and whitespace
+                    let clean = rawPrice.toString().replace(/[€\s]/g, '');
+                    // Handle Dutch notation: "1.234,-" -> "1.234.00"
                     if (clean.endsWith(',-')) clean = clean.replace(',-', '.00');
-                    clean = clean.replace(/\./g, '').replace(',', '.');
+                    // Handle Dutch notation: dots are thousands, comma is decimal
+                    clean = clean.replace(/\./g, '').replace(',', '.'); 
+                    
                     const price = parseFloat(clean);
                     
                     if (!isNaN(price)) {
@@ -306,13 +415,32 @@
                         if (document.getElementById('partName').value === "") {
                             document.getElementById('partName').value = name.toLowerCase();
                         }
-                        fetchStatus.innerHTML = '<i class="fa-solid fa-circle-check text-green-500"></i>';
+                        
+                        loader.remove();
+                        icon.className = 'fa-solid fa-circle-check text-green-500';
+                        fetchTooltip.textContent = "price found!";
                         return;
                     }
                 }
-                fetchStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-yellow-600"></i>';
+                
+                throw { type: 'noprice' };
+
             } catch (e) {
-                fetchStatus.innerHTML = '<i class="fa-solid fa-circle-xmark text-red-500"></i>';
+                loader.remove();
+                if (e.type === 'cookie') {
+                    icon.className = 'fa-solid fa-cookie-bite text-orange-500';
+                    fetchTooltip.textContent = "blocked by cookie wall";
+                } else if (e.type === 'expected') {
+                    icon.className = 'fa-regular fa-clock text-blue-400';
+                    fetchTooltip.textContent = "coming soon (no price)";
+                } else if (e.type === 'noprice') {
+                    icon.className = 'fa-solid fa-triangle-exclamation text-yellow-500';
+                    fetchTooltip.textContent = "price not found on page";
+                } else {
+                    icon.className = 'fa-solid fa-circle-xmark text-red-500';
+                    fetchTooltip.textContent = "network error";
+                }
+                console.error(e);
             }
         }
 
@@ -411,7 +539,8 @@
             submitBtn.textContent = 'add component';
             cancelEditBtn.classList.add('hidden');
             editModeIndicator.classList.add('hidden');
-            fetchStatus.innerHTML = '<i class="fa-solid fa-link text-zinc-500"></i>';
+            fetchStatus.querySelector('i').className = 'fa-solid fa-link text-zinc-500';
+            fetchTooltip.textContent = "auto-fetch ready";
         }
 
         function deletePart(id) {
