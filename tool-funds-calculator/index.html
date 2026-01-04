@@ -135,25 +135,47 @@
                 try {
                     let price = null;
 
-                    // --- STRATEGY 1: Public Yahoo API (No Key Needed) ---
+                    // --- STRATEGY 1: Public Yahoo Web Scraping (Most Robust for Static Sites) ---
                     if (config.dataSource === 'yahoo_public') {
-                        // FIX: Switched from /chart to /quote endpoint which is more reliable for funds
-                        const targetUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${config.ticker}`;
-                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                        // We fetch the actual HTML page of the stock/fund via AllOrigins proxy
+                        // This bypasses API blocks because it looks like a browser request
+                        const targetUrl = `https://finance.yahoo.com/quote/${config.ticker}`;
+                        // Using 'get' instead of 'raw' to avoid some MIME type issues, gives us a JSON wrapper with contents
+                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
                         
-                        log(`Fetching: ${proxyUrl}`);
+                        log(`Fetching Page: ${proxyUrl}`);
                         const response = await fetch(proxyUrl);
                         
                         if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
                         const data = await response.json();
-                        log("Public API Data:", data);
+                        
+                        if (!data.contents) throw new Error("Proxy returned empty content");
+                        
+                        const html = data.contents;
+                        log("Page HTML received (" + html.length + " chars)");
 
-                        // Parse path: quoteResponse.result[0].regularMarketPrice
-                        if (data.quoteResponse && data.quoteResponse.result && data.quoteResponse.result.length > 0) {
-                            const result = data.quoteResponse.result[0];
-                            price = result.regularMarketPrice || result.price || result.close;
+                        // Regex to find the price in the new Yahoo Finance layout
+                        // Matches: <fin-streamer ... data-field="regularMarketPrice" ... value="12.34">
+                        // Also checks for "regularMarketPrice":{"raw":12.34 ... inside script tags
+                        
+                        // Attempt 1: fin-streamer tag (Common in body)
+                        const streamerRegex = /data-field="regularMarketPrice"[^>]*value="([\d\.]+)"/i;
+                        const match1 = html.match(streamerRegex);
+
+                        // Attempt 2: Script JSON data (Backup)
+                        const scriptRegex = /"regularMarketPrice":\{"raw":([\d\.]+)/i;
+                        const match2 = html.match(scriptRegex);
+
+                        if (match1 && match1[1]) {
+                            price = match1[1];
+                            log("Found price via fin-streamer tag: " + price);
+                        } else if (match2 && match2[1]) {
+                            price = match2[1];
+                            log("Found price via script JSON: " + price);
                         } else {
-                            throw new Error("Symbol not found in Yahoo Database");
+                            // Last ditch: look for the specific meta tag or label
+                            // Sometimes Yahoo changes layout.
+                            throw new Error("Could not parse price from Yahoo Finance page HTML. Ticker might be wrong.");
                         }
                     } 
                     
@@ -293,7 +315,7 @@
                                         onChange={(e) => setConfig({...config, dataSource: e.target.value})}
                                         className="min-input w-full px-3 py-2 text-sm rounded"
                                     >
-                                        <option value="yahoo_public">Public Yahoo API (No Key - Recommended)</option>
+                                        <option value="yahoo_public">Public Yahoo (Web Scrape - Recommended)</option>
                                         <option value="rapidapi">RapidAPI (Requires Key)</option>
                                     </select>
                                 </div>
