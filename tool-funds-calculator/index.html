@@ -95,7 +95,6 @@
             const [config, setConfig] = useState(() => {
                 const saved = localStorage.getItem('yh_fund_config');
                 const parsed = saved ? JSON.parse(saved) : {};
-                // Default values + Merge new 'useProxy' setting if it doesn't exist
                 return {
                     apiKey: parsed.apiKey || '',
                     shares: parsed.shares || 100,
@@ -103,18 +102,28 @@
                     ticker: parsed.ticker || '0P0001BUP5.F',
                     currentPrice: parsed.currentPrice || 10.00,
                     lastUpdate: parsed.lastUpdate || null,
-                    useProxy: parsed.useProxy !== undefined ? parsed.useProxy : true // Default to true for Github Pages
+                    useProxy: parsed.useProxy !== undefined ? parsed.useProxy : true,
+                    proxyService: parsed.proxyService || 'thingproxy', // Default to thingproxy
+                    showDebug: parsed.showDebug || false
                 };
             });
 
             const [showSettings, setShowSettings] = useState(false);
             const [isLoading, setIsLoading] = useState(false);
             const [error, setError] = useState(null);
+            const [debugLog, setDebugLog] = useState([]);
 
             // Save to local storage
             useEffect(() => {
                 localStorage.setItem('yh_fund_config', JSON.stringify(config));
             }, [config]);
+
+            const log = (msg, data = null) => {
+                const time = new Date().toLocaleTimeString();
+                const newEntry = `[${time}] ${msg} ${data ? JSON.stringify(data) : ''}`;
+                console.log(msg, data);
+                setDebugLog(prev => [newEntry, ...prev].slice(0, 50));
+            };
 
             const fetchYahooPrice = async () => {
                 if (!config.apiKey) {
@@ -125,6 +134,8 @@
 
                 setIsLoading(true);
                 setError(null);
+                setDebugLog([]); // Clear log on new fetch
+                log("Starting fetch...");
 
                 const options = {
                     method: 'GET',
@@ -134,34 +145,42 @@
                     }
                 };
 
-                // Construct URL
+                // Proxy Selection Logic
                 const targetUrl = `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/quote?ticker=${encodeURIComponent(config.ticker)}`;
-                
-                // If using Proxy, we wrap the target URL
-                // We use corsproxy.io which is a reliable public proxy
-                const finalUrl = config.useProxy 
-                    ? `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
-                    : targetUrl;
+                let finalUrl = targetUrl;
+
+                if (config.useProxy) {
+                    if (config.proxyService === 'corsproxy') {
+                        finalUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+                    } else if (config.proxyService === 'thingproxy') {
+                        finalUrl = `https://thingproxy.freeboard.io/fetch/${targetUrl}`;
+                    }
+                }
 
                 try {
-                    console.log(`Fetching: ${finalUrl} (Proxy: ${config.useProxy})`);
+                    log(`Proxy: ${config.useProxy ? config.proxyService : 'Disabled'}`);
+                    log(`Target: ${targetUrl}`);
+                    log(`Final URL: ${finalUrl}`);
                     
                     const response = await fetch(finalUrl, options);
+                    log(`Response Status: ${response.status} ${response.statusText}`);
                     
                     if (!response.ok) {
                         const errorText = await response.text();
-                        console.error("API Error Body:", errorText);
+                        log(`Error Body: ${errorText}`);
                         
-                        // Handle specific HTTP errors
-                        if (response.status === 403) throw new Error("403 Forbidden: API Key invalid or Proxy rejected?");
+                        // Handle Proxy Errors vs API Errors
+                        if (errorText.includes("corsproxy")) throw new Error("Proxy Error: corsproxy.io rejected request. Try ThingProxy.");
+                        if (response.status === 403) throw new Error("403 Forbidden (Check API Key or Proxy)");
                         if (response.status === 429) throw new Error("429 Too Many Requests");
-                        throw new Error(`API Status ${response.status}: ${response.statusText}`);
+                        if (response.status === 0) throw new Error("Network Error (CORS Blocked?)");
+                        throw new Error(`API Status ${response.status}`);
                     }
 
                     const data = await response.json();
-                    console.log("Data:", data);
+                    log("Data received", data);
                     
-                    // --- Robust Data Parsing ---
+                    // --- Parsing Logic ---
                     let quote = null;
 
                     if (data.body && Array.isArray(data.body) && data.body.length > 0) {
@@ -174,32 +193,35 @@
                          quote = data; 
                     }
                     
-                    if (!quote) throw new Error("empty data received");
+                    if (!quote) throw new Error("Empty data structure received");
 
                     // Check for price fields
                     const price = quote.regularMarketPrice || quote.price || quote.close || quote.preMarketPrice;
 
                     if (price !== undefined && price !== null) {
+                        const newPrice = parseFloat(price);
+                        log(`Price found: ${newPrice}`);
+                        
                         setConfig(prev => ({
                             ...prev,
-                            currentPrice: parseFloat(price),
+                            currentPrice: newPrice,
                             lastUpdate: new Date().toISOString()
                         }));
                     } else {
-                        throw new Error("price data missing in response");
+                        throw new Error("Price field missing in response");
                     }
 
                 } catch (err) {
-                    console.error("Error:", err);
+                    log(`EXCEPTION: ${err.message}`);
                     
-                    // Helpful message for CORS errors
                     if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
-                        setError("network error: browser blocked request. try enabling 'use cors proxy' in settings.");
+                        setError("network error: browser blocked request. try checking proxy settings.");
                     } else {
                         setError(`error: ${err.message}`);
                     }
                 } finally {
                     setIsLoading(false);
+                    log("Fetch complete");
                 }
             };
 
@@ -242,7 +264,7 @@
                     {/* Main Display */}
                     <div className="flex flex-col gap-1">
                         <span className="text-sm text-zinc-500 lowercase-header">current value</span>
-                        <div className="text-5xl font-light tracking-tight text-white">
+                        <div className="text-5xl font-light tracking-tight text-white transition-all duration-300">
                             {fmt(currentValue)}
                         </div>
                     </div>
@@ -289,9 +311,6 @@
                                         value={config.ticker}
                                         onChange={(e) => setConfig({...config, ticker: e.target.value})}
                                     />
-                                    <p className="text-[10px] text-zinc-600 mt-1">
-                                        Use '0P0001BUP5.F' for funds or 'AAPL' for stocks.
-                                    </p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -315,7 +334,7 @@
                                 </div>
 
                                 <div>
-                                    <label className="text-xs text-zinc-500 lowercase-header block mb-2">current price (€) [Manual Override]</label>
+                                    <label className="text-xs text-zinc-500 lowercase-header block mb-2">current price (€) [Manual]</label>
                                     <input 
                                         type="number" 
                                         step="0.01"
@@ -325,17 +344,46 @@
                                     />
                                 </div>
 
-                                <div className="flex items-center gap-3 pt-2">
-                                    <input 
-                                        type="checkbox" 
-                                        id="useProxy"
-                                        checked={config.useProxy}
-                                        onChange={(e) => setConfig({...config, useProxy: e.target.checked})}
-                                        className="w-4 h-4 rounded border-zinc-700 bg-black text-emerald-500 focus:ring-0"
-                                    />
-                                    <label htmlFor="useProxy" className="text-xs text-zinc-400 lowercase-header select-none cursor-pointer">
-                                        use cors proxy (required for github pages)
-                                    </label>
+                                <div className="border-t border-zinc-800 pt-3">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <input 
+                                            type="checkbox" 
+                                            id="useProxy"
+                                            checked={config.useProxy}
+                                            onChange={(e) => setConfig({...config, useProxy: e.target.checked})}
+                                            className="w-4 h-4 rounded border-zinc-700 bg-black text-emerald-500 focus:ring-0"
+                                        />
+                                        <label htmlFor="useProxy" className="text-xs text-zinc-400 lowercase-header select-none cursor-pointer">
+                                            use cors proxy
+                                        </label>
+                                    </div>
+
+                                    {config.useProxy && (
+                                        <div className="mb-3">
+                                            <label className="text-xs text-zinc-500 lowercase-header block mb-1 ml-7">proxy service</label>
+                                            <select 
+                                                value={config.proxyService}
+                                                onChange={(e) => setConfig({...config, proxyService: e.target.value})}
+                                                className="min-input w-full ml-7 w-[calc(100%-1.75rem)] px-2 py-1 text-xs rounded"
+                                            >
+                                                <option value="thingproxy">ThingProxy (Recommended)</option>
+                                                <option value="corsproxy">CorsProxy.io (Limit Issues)</option>
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center gap-3">
+                                        <input 
+                                            type="checkbox" 
+                                            id="showDebug"
+                                            checked={config.showDebug}
+                                            onChange={(e) => setConfig({...config, showDebug: e.target.checked})}
+                                            className="w-4 h-4 rounded border-zinc-700 bg-black text-emerald-500 focus:ring-0"
+                                        />
+                                        <label htmlFor="showDebug" className="text-xs text-zinc-400 lowercase-header select-none cursor-pointer">
+                                            show debug log
+                                        </label>
+                                    </div>
                                 </div>
                                 
                                 <div className="pt-2">
@@ -351,6 +399,16 @@
                     )}
 
                     <hr className="border-zinc-800" />
+
+                    {/* Debug Log Output */}
+                    {config.showDebug && debugLog.length > 0 && (
+                        <div className="w-full p-4 bg-zinc-900 rounded border border-zinc-800 font-mono text-[10px] text-zinc-400 overflow-x-auto">
+                            <p className="text-white mb-2 border-b border-zinc-800 pb-1">Debug Log</p>
+                            {debugLog.map((entry, i) => (
+                                <div key={i} className="whitespace-pre-wrap mb-1">{entry}</div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Fund Detail */}
                     <div className="flex flex-col gap-4">
