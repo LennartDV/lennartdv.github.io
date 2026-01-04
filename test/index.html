@@ -11,17 +11,15 @@
         
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #000000; /* Pure Black */
+            background-color: #000000;
             color: #ffffff;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #000; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 0px; }
         ::-webkit-scrollbar-thumb:hover { background: #555; }
 
-        /* Minimalist Input */
         .min-input {
             background-color: #000;
             border: 1px solid #333;
@@ -34,7 +32,6 @@
             border-color: #fff;
         }
 
-        /* Minimalist Button */
         .min-btn {
             background-color: #000;
             border: 1px solid #333;
@@ -59,7 +56,6 @@
             border-color: #ddd;
         }
 
-        /* Tab Style */
         .tab-active {
             border-bottom: 1px solid #fff;
             color: #fff;
@@ -72,21 +68,14 @@
             color: #999;
         }
 
-        /* Modal */
         .modal-overlay {
             background-color: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(2px);
         }
 
-        hr {
-            border-color: #333;
-        }
-        
-        .lowercase-header {
-            text-transform: lowercase;
-        }
+        hr { border-color: #333; }
+        .lowercase-header { text-transform: lowercase; }
 
-        /* Loading Spinner */
         .loader {
             border: 2px solid #333;
             border-top: 2px solid #fff;
@@ -96,7 +85,6 @@
             animation: spin 1s linear infinite;
             display: inline-block;
         }
-
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -105,6 +93,7 @@
 </head>
 <body class="min-h-screen flex flex-col items-center p-6 pb-32 max-w-3xl mx-auto">
 
+    <!-- Header -->
     <header class="w-full mb-8 flex flex-col gap-4">
         <div class="flex justify-between items-center">
             <h1 class="text-3xl font-light lowercase-header tracking-tight">pc part picker</h1>
@@ -115,8 +104,10 @@
         <hr />
     </header>
 
+    <!-- Main Content -->
     <main class="w-full flex flex-col gap-8">
 
+        <!-- Tabs -->
         <div class="flex flex-col gap-3">
             <div class="flex items-center justify-between">
                 <span class="text-sm text-zinc-500 lowercase-header">builds</span>
@@ -124,10 +115,10 @@
                     + new
                 </button>
             </div>
-            <div class="flex gap-4 overflow-x-auto pb-1" id="tabsContainer">
-                </div>
+            <div class="flex gap-4 overflow-x-auto pb-1" id="tabsContainer"></div>
         </div>
         
+        <!-- Input Form -->
         <div class="w-full relative">
             <div id="editModeIndicator" class="hidden absolute -top-6 left-0 text-xs text-white bg-zinc-800 px-2 py-0.5 rounded lowercase-header">
                 editing component...
@@ -151,10 +142,9 @@
 
                     <div class="w-2/3 relative">
                         <input type="text" id="partLink" placeholder="paste tweakers link to autofill"
-                            class="min-input w-full px-3 py-2 text-sm placeholder-zinc-600 pr-8">
-                        
-                        <div id="fetchStatus" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
-                            <i class="fa-solid fa-link"></i>
+                            class="min-input w-full px-3 py-2 text-sm placeholder-zinc-600 pr-10">
+                        <div id="fetchStatus" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs flex items-center">
+                            <i class="fa-solid fa-link text-zinc-500"></i>
                         </div>
                     </div>
                 </div>
@@ -163,7 +153,7 @@
                     <button type="submit" id="submitBtn" class="min-btn min-btn-primary w-full py-2 text-sm">
                         add component
                     </button>
-                    <button type="button" id="cancelEditBtn" onclick="cancelEdit()" class="hidden min-btn w-1/4 py-2 text-sm text-red-400 hover:text-red-300 border-red-900 hover:border-red-800">
+                    <button type="button" id="cancelEditBtn" onclick="cancelEdit()" class="hidden min-btn w-1/4 py-2 text-sm text-red-400 border-red-900">
                         cancel
                     </button>
                 </div>
@@ -172,6 +162,7 @@
 
         <hr />
 
+        <!-- Parts List -->
         <div id="listContainer" class="flex flex-col gap-2">
             <div id="emptyState" class="text-center py-12 text-zinc-700 lowercase-header">
                 no parts added yet
@@ -181,9 +172,9 @@
         <div class="flex justify-center mt-4">
              <button onclick="deleteCurrentBuild()" class="text-zinc-700 hover:text-red-700 text-xs transition-colors lowercase-header">delete build</button>
         </div>
-
     </main>
 
+    <!-- Footer Total -->
     <div class="fixed bottom-0 left-0 w-full border-t border-zinc-800 bg-black/95 backdrop-blur-sm z-40">
         <div class="max-w-3xl mx-auto p-4 flex justify-between items-center">
             <div class="flex flex-col">
@@ -196,34 +187,27 @@
         </div>
     </div>
 
+    <!-- Data Modal -->
     <div id="dataModal" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
         <div class="bg-black border border-zinc-800 p-6 w-full max-w-md shadow-2xl relative">
             <button onclick="closeSettings()" class="absolute top-4 right-4 text-zinc-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            
             <h2 class="text-lg font-light lowercase-header mb-6">import / export</h2>
-            
             <div class="grid grid-cols-2 gap-3 mb-6">
                 <button onclick="downloadDataFile()" class="min-btn py-4 flex flex-col items-center justify-center gap-2 group">
                     <i class="fa-solid fa-download text-zinc-500 group-hover:text-white"></i>
                     <span class="text-xs">download .txt</span>
                 </button>
-
                 <label class="min-btn py-4 flex flex-col items-center justify-center gap-2 cursor-pointer group">
                     <i class="fa-solid fa-file-import text-zinc-500 group-hover:text-white"></i>
                     <span class="text-xs">import .txt</span>
                     <input type="file" id="fileInput" onchange="importDataFile(this)" accept=".txt,.json" class="hidden">
                 </label>
             </div>
-
             <div class="border-t border-zinc-900 pt-4">
-                <button onclick="toggleManualMode()" class="text-xs text-zinc-600 hover:text-zinc-400 w-full text-center lowercase-header">
-                    manual copy/paste
-                </button>
-                
+                <button onclick="toggleManualMode()" class="text-xs text-zinc-600 hover:text-zinc-400 w-full text-center lowercase-header">manual copy/paste</button>
                 <div id="manualSection" class="hidden mt-4">
                     <textarea id="dataExportArea" class="min-input w-full h-24 p-2 text-xs font-mono mb-2" readonly></textarea>
                     <button onclick="copyToClipboard()" class="min-btn w-full py-1 text-xs mb-4">copy text</button>
-
                     <div class="flex gap-2">
                         <input type="text" id="manualInput" class="min-input flex-1 px-2 py-1 text-xs font-mono" placeholder="paste data...">
                         <button onclick="importManualData()" class="min-btn px-4 py-1 text-xs">load</button>
@@ -234,16 +218,12 @@
     </div>
 
     <script>
-        // --- State Management ---
         const STORAGE_KEY = 'pc_planner_data_v5';
         let appData = {
-            builds: [
-                { id: 'default', name: 'my build', parts: [] }
-            ],
+            builds: [{ id: 'default', name: 'my build', parts: [] }],
             activeBuildId: 'default'
         };
 
-        // --- DOM Elements ---
         const form = document.getElementById('partForm');
         const listContainer = document.getElementById('listContainer');
         const emptyState = document.getElementById('emptyState');
@@ -255,35 +235,95 @@
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         const editModeIndicator = document.getElementById('editModeIndicator');
         const fetchStatus = document.getElementById('fetchStatus');
+        const partLinkInput = document.getElementById('partLink');
 
-        // Modal Elements
-        const dataModal = document.getElementById('dataModal');
-        const dataExportArea = document.getElementById('dataExportArea');
-        const manualSection = document.getElementById('manualSection');
-
-        // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             loadData();
             renderApp();
-            
-            // Auto fetch listener
-            document.getElementById('partLink').addEventListener('input', handleLinkInput);
+            partLinkInput.addEventListener('input', handleLinkInput);
         });
 
-        // --- Data Logic ---
+        // --- Tweakers Auto Fetch ---
+        let fetchTimeout;
+        function handleLinkInput(e) {
+            const url = e.target.value.trim();
+            clearTimeout(fetchTimeout);
+            if (url.includes('tweakers.net/pricewatch')) {
+                fetchTimeout = setTimeout(() => fetchTweakersData(url), 600);
+            } else {
+                fetchStatus.innerHTML = '<i class="fa-solid fa-link text-zinc-500"></i>';
+            }
+        }
+
+        async function fetchTweakersData(url) {
+            fetchStatus.innerHTML = '<div class="loader"></div>';
+            try {
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+                const data = await response.json();
+                if (!data.contents) throw new Error();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(data.contents, "text/html");
+
+                // Title Extraction
+                const titleSelectors = ['h1', 'meta[property="og:title"]', '.product-header__title'];
+                let name = "";
+                for (const sel of titleSelectors) {
+                    const el = doc.querySelector(sel);
+                    if (el) {
+                        name = (sel.startsWith('meta') ? el.content : el.innerText).replace(' - Kenmerken - Tweakers', '').replace(' - Prijzen - Tweakers', '').trim();
+                        break;
+                    }
+                }
+
+                // Price Extraction
+                const priceSelectors = [
+                    'meta[itemprop="price"]',
+                    '.best-price-summary__price',
+                    '.price-summary__price',
+                    '.shop-price',
+                    '.poster__price'
+                ];
+                let rawPrice = "";
+                for (const sel of priceSelectors) {
+                    const el = doc.querySelector(sel);
+                    if (el) {
+                        rawPrice = sel.startsWith('meta') ? el.content : el.innerText;
+                        break;
+                    }
+                }
+
+                if (rawPrice) {
+                    // Normalize Dutch price formats: "1.234,56", "1.234,-", "€ 1.234"
+                    let clean = rawPrice.replace(/[€\s]/g, '');
+                    if (clean.endsWith(',-')) clean = clean.replace(',-', '.00');
+                    clean = clean.replace(/\./g, '').replace(',', '.');
+                    const price = parseFloat(clean);
+                    
+                    if (!isNaN(price)) {
+                        document.getElementById('partPrice').value = price;
+                        if (document.getElementById('partName').value === "") {
+                            document.getElementById('partName').value = name.toLowerCase();
+                        }
+                        fetchStatus.innerHTML = '<i class="fa-solid fa-circle-check text-green-500"></i>';
+                        return;
+                    }
+                }
+                fetchStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-yellow-600"></i>';
+            } catch (e) {
+                fetchStatus.innerHTML = '<i class="fa-solid fa-circle-xmark text-red-500"></i>';
+            }
+        }
+
+        // --- App Logic ---
         function loadData() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    if (parsed.builds) {
-                        appData = parsed;
-                    }
-                } catch(e) {
-                    console.error("Save data corrupted", e);
-                }
-            } else {
-                // Migration logic from old versions could go here
+                    if (parsed.builds) appData = parsed;
+                } catch(e) {}
             }
         }
 
@@ -296,108 +336,8 @@
             return appData.builds.find(b => b.id === appData.activeBuildId) || appData.builds[0];
         }
 
-        // --- TWEAKERS SCRAPING LOGIC ---
-        let fetchTimeout;
-
-        function handleLinkInput(e) {
-            const url = e.target.value.trim();
-            const statusEl = document.getElementById('fetchStatus');
-            
-            // Clear previous timeout
-            clearTimeout(fetchTimeout);
-
-            // Simple validation: must contain 'tweakers' and 'pricewatch'
-            if (url.includes('tweakers.net/pricewatch')) {
-                // Debounce: wait 500ms after user stops typing
-                fetchTimeout = setTimeout(() => {
-                    fetchTweakersData(url);
-                }, 500);
-            } else {
-                statusEl.innerHTML = '<i class="fa-solid fa-link"></i>';
-            }
-        }
-
-        async function fetchTweakersData(url) {
-            const statusEl = document.getElementById('fetchStatus');
-            const nameInput = document.getElementById('partName');
-            const priceInput = document.getElementById('partPrice');
-
-            // Set loading state
-            statusEl.innerHTML = '<div class="loader"></div>';
-
-            try {
-                // We use allorigins.win as a CORS proxy to bypass browser security restrictions on static sites
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-                
-                const response = await fetch(proxyUrl);
-                const data = await response.json();
-
-                if (!data.contents) throw new Error("No data returned");
-
-                // Parse the HTML
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(data.contents, "text/html");
-
-                // 1. Attempt to find Title (Usually in h1 or specific div)
-                let title = "";
-                const titleEl = doc.querySelector('h1.tweakHeader') || doc.querySelector('.entity-header__title');
-                if (titleEl) {
-                    title = titleEl.innerText.trim();
-                }
-
-                // 2. Attempt to find Price
-                // Tweakers usually puts the lowest price in a specific table cell or meta tag
-                let price = 0;
-                
-                // Strategy A: Look for Schema.org meta tag (most reliable)
-                // Note: Tweakers sometimes uses comma for decimals in meta content too, checking both
-                let priceMeta = doc.querySelector('meta[itemprop="price"]');
-                let priceText = "";
-
-                if (priceMeta) {
-                    priceText = priceMeta.content;
-                } else {
-                    // Strategy B: Look for visual price element
-                    // This selector targets the price in the main header or pricing table
-                    const priceEl = doc.querySelector('.shop-price') || doc.querySelector('.poster__price');
-                    if (priceEl) priceText = priceEl.innerText;
-                }
-
-                // Parse the European price format (e.g. "€ 1.299,00" -> 1299.00)
-                if (priceText) {
-                    // Remove currency symbol and whitespace
-                    let cleanString = priceText.replace(/[€\s]/g, ''); 
-                    // Remove thousands separator (dots)
-                    cleanString = cleanString.replace(/\./g, '');
-                    // Replace decimal separator (comma) with dot
-                    cleanString = cleanString.replace(/,/g, '.');
-                    // Remove non-numeric characters except dot
-                    cleanString = cleanString.replace(/[^0-9.]/g, '');
-                    
-                    price = parseFloat(cleanString);
-                }
-
-                // Update Inputs
-                if (title && nameInput.value === "") {
-                    nameInput.value = title.toLowerCase();
-                }
-                
-                if (price && !isNaN(price)) {
-                    priceInput.value = price;
-                    statusEl.innerHTML = '<i class="fa-solid fa-check text-green-500"></i>';
-                } else {
-                    statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-yellow-500"></i>';
-                }
-
-            } catch (err) {
-                console.error("Fetch failed", err);
-                statusEl.innerHTML = '<i class="fa-solid fa-xmark text-red-500"></i>';
-            }
-        }
-
-        // --- Build/Tab Management ---
         function createNewBuild() {
-            const name = prompt("name for new build:", "new pc");
+            const name = prompt("name for new build:");
             if (name) {
                 const newId = Date.now().toString();
                 appData.builds.push({ id: newId, name: name.toLowerCase(), parts: [] });
@@ -423,76 +363,46 @@
         }
 
         function deleteCurrentBuild() {
-            if (appData.builds.length <= 1) {
-                alert("cannot delete the only build.");
-                return;
-            }
-            if(confirm("delete this build permanently?")) {
+            if (appData.builds.length <= 1) return;
+            if(confirm("delete this build?")) {
                 appData.builds = appData.builds.filter(b => b.id !== appData.activeBuildId);
                 appData.activeBuildId = appData.builds[0].id;
                 saveData();
             }
         }
 
-        // --- Part Management ---
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             const build = getActiveBuild();
             const idInput = document.getElementById('editId');
-            const nameInput = document.getElementById('partName');
-            const priceInput = document.getElementById('partPrice');
-            const linkInput = document.getElementById('partLink');
-
-            let linkUrl = linkInput.value.trim();
-            if (linkUrl && !linkUrl.match(/^https?:\/\//i)) {
-                linkUrl = 'https://' + linkUrl;
-            }
+            const nameVal = document.getElementById('partName').value.trim().toLowerCase();
+            const priceVal = parseFloat(document.getElementById('partPrice').value);
+            const linkVal = document.getElementById('partLink').value.trim();
 
             if (idInput.value) {
-                // Edit existing
                 const part = build.parts.find(p => p.id == idInput.value);
                 if (part) {
-                    part.name = nameInput.value.trim().toLowerCase();
-                    part.price = parseFloat(priceInput.value);
-                    part.link = linkUrl;
+                    part.name = nameVal;
+                    part.price = priceVal;
+                    part.link = linkVal;
                 }
             } else {
-                // Add new
-                const newPart = {
-                    id: Date.now(),
-                    name: nameInput.value.trim().toLowerCase(),
-                    price: parseFloat(priceInput.value),
-                    link: linkUrl
-                };
-                build.parts.push(newPart);
+                build.parts.push({ id: Date.now(), name: nameVal, price: priceVal, link: linkVal });
             }
-
             cancelEdit();
             saveData();
         });
 
-        function deletePart(id) {
-            const build = getActiveBuild();
-            build.parts = build.parts.filter(part => part.id !== id);
-            saveData();
-        }
-
         function editPart(id) {
-            const build = getActiveBuild();
-            const part = build.parts.find(p => p.id === id);
+            const part = getActiveBuild().parts.find(p => p.id === id);
             if(!part) return;
-
             document.getElementById('editId').value = part.id;
             document.getElementById('partName').value = part.name;
             document.getElementById('partPrice').value = part.price;
             document.getElementById('partLink').value = part.link;
-
-            // UI Mode Switch
             submitBtn.textContent = 'save changes';
             cancelEditBtn.classList.remove('hidden');
             editModeIndicator.classList.remove('hidden');
-            
-            document.getElementById('partName').focus();
         }
 
         function cancelEdit() {
@@ -501,190 +411,92 @@
             submitBtn.textContent = 'add component';
             cancelEditBtn.classList.add('hidden');
             editModeIndicator.classList.add('hidden');
-            // Reset status icon
-            fetchStatus.innerHTML = '<i class="fa-solid fa-link"></i>';
+            fetchStatus.innerHTML = '<i class="fa-solid fa-link text-zinc-500"></i>';
         }
 
-        // --- Import / Export Logic ---
-        function openSettings() {
-            dataExportArea.value = JSON.stringify(appData);
-            dataModal.classList.remove('hidden');
+        function deletePart(id) {
+            const build = getActiveBuild();
+            build.parts = build.parts.filter(p => p.id !== id);
+            saveData();
         }
 
-        function closeSettings() {
-            dataModal.classList.add('hidden');
-            manualSection.classList.add('hidden');
-        }
-
-        function downloadDataFile() {
-            const dataStr = JSON.stringify(appData, null, 2);
-            const blob = new Blob([dataStr], { type: "text/plain" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const date = new Date().toISOString().split('T')[0];
-            a.href = url;
-            a.download = `pc_build_backup_${date}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        function importDataFile(input) {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    processImport(e.target.result);
-                } catch(err) {
-                    alert("Error reading file");
-                }
-            };
-            reader.readAsText(file);
-            input.value = '';
-        }
-
-        function toggleManualMode() {
-            manualSection.classList.toggle('hidden');
-        }
-
-        function copyToClipboard() {
-            dataExportArea.select();
-            document.execCommand('copy');
-        }
-
-        function importManualData() {
-            const input = document.getElementById('manualInput').value;
-            if(!input) return;
-            processImport(input);
-            document.getElementById('manualInput').value = '';
-        }
-
-        function processImport(jsonString) {
-            try {
-                const parsed = JSON.parse(jsonString);
-                let validData = null;
-
-                if (parsed.builds && Array.isArray(parsed.builds)) {
-                    validData = parsed;
-                } else if (Array.isArray(parsed)) {
-                    validData = { 
-                        builds: [{id:'import', name:'imported build', parts: parsed}], 
-                        activeBuildId:'import'
-                    };
-                }
-
-                if (validData) {
-                    if(confirm("overwrite current builds?")) {
-                        appData = validData;
-                        if(!appData.builds.find(b => b.id === appData.activeBuildId)) {
-                             appData.activeBuildId = appData.builds[0].id;
-                        }
-                        saveData();
-                        closeSettings();
-                    }
-                } else {
-                    alert("invalid file format");
-                }
-            } catch (e) {
-                alert("error parsing data");
-            }
-        }
-
-        // --- Rendering ---
         function renderApp() {
-            renderTabs();
-            renderList();
-        }
-
-        function renderTabs() {
             tabsContainer.innerHTML = '';
             appData.builds.forEach(build => {
-                const isActive = build.id === appData.activeBuildId;
                 const btn = document.createElement('button');
-                btn.className = `px-3 py-1 text-sm whitespace-nowrap transition-colors lowercase-header ${
-                    isActive ? 'tab-active font-medium' : 'tab-inactive'
-                }`;
+                btn.className = `px-3 py-1 text-sm whitespace-nowrap lowercase-header ${build.id === appData.activeBuildId ? 'tab-active' : 'tab-inactive'}`;
                 btn.onclick = () => switchTab(build.id);
-                
-                // Double click to rename
                 btn.ondblclick = () => renameTab(build.id);
                 btn.textContent = build.name;
-                
                 tabsContainer.appendChild(btn);
             });
-        }
 
-        function renderList() {
             listContainer.innerHTML = '';
             const build = getActiveBuild();
-            const parts = build.parts;
-
-            activeBuildLabel.textContent = `total: ${build.name}`;
-            
-            if (parts.length === 0) {
+            if (build.parts.length === 0) {
                 listContainer.appendChild(emptyState);
                 emptyState.classList.remove('hidden');
             } else {
                 emptyState.classList.add('hidden');
-                
-                parts.forEach(part => {
+                build.parts.forEach(part => {
                     const card = document.createElement('div');
-                    card.className = 'flex items-center justify-between py-3 border-b border-zinc-900 group';
-                    
-                    const formattedPrice = new Intl.NumberFormat('de-DE', { 
-                        style: 'currency', 
-                        currency: 'EUR' 
-                    }).format(part.price);
-
-                    const linkButton = part.link 
-                        ? `<a href="${part.link}" target="_blank" class="text-zinc-500 hover:text-white transition-colors px-2">
-                             <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
-                           </a>`
-                        : `<span class="text-zinc-800 px-2 cursor-not-allowed"><i class="fa-solid fa-link-slash text-xs"></i></span>`;
-
+                    card.className = 'flex items-center justify-between py-3 border-b border-zinc-900';
+                    const formatted = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(part.price);
                     card.innerHTML = `
-                        <div class="flex-1 mr-4">
-                            <h3 class="font-normal text-white text-sm lowercase-header">${escapeHtml(part.name)}</h3>
-                            <p class="text-zinc-500 font-mono text-xs mt-0.5">${formattedPrice}</p>
+                        <div class="flex-1">
+                            <h3 class="text-white text-sm lowercase-header">${part.name}</h3>
+                            <p class="text-zinc-500 font-mono text-xs">${formatted}</p>
                         </div>
-                        <div class="flex items-center">
-                            ${linkButton}
-                            
-                            <button onclick="editPart(${part.id})" class="text-zinc-600 hover:text-zinc-400 px-2 transition-colors">
-                                <i class="fa-solid fa-pencil text-xs"></i>
-                            </button>
-
-                            <button onclick="deletePart(${part.id})" class="text-zinc-600 hover:text-red-500 px-2 transition-colors">
-                                <i class="fa-solid fa-trash text-xs"></i>
-                            </button>
-                        </div>
-                    `;
+                        <div class="flex gap-2">
+                            ${part.link ? `<a href="${part.link}" target="_blank" class="text-zinc-500 hover:text-white px-2"><i class="fa-solid fa-up-right-from-square text-xs"></i></a>` : ''}
+                            <button onclick="editPart(${part.id})" class="text-zinc-600 hover:text-zinc-400 px-1"><i class="fa-solid fa-pencil text-xs"></i></button>
+                            <button onclick="deletePart(${part.id})" class="text-zinc-600 hover:text-red-500 px-1"><i class="fa-solid fa-trash text-xs"></i></button>
+                        </div>`;
                     listContainer.appendChild(card);
                 });
             }
-            
-            updateTotal(parts);
+            const total = build.parts.reduce((s, p) => s + p.price, 0);
+            totalPriceEl.textContent = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(total);
+            itemCountEl.textContent = `${build.parts.length} items`;
+            activeBuildLabel.textContent = `total: ${build.name}`;
         }
 
-        function updateTotal(parts) {
-            const total = parts.reduce((sum, part) => sum + part.price, 0);
-            
-            totalPriceEl.textContent = new Intl.NumberFormat('de-DE', { 
-                style: 'currency', 
-                currency: 'EUR' 
-            }).format(total);
-
-            itemCountEl.textContent = `${parts.length} items`;
+        // --- Settings / Data ---
+        function openSettings() { 
+            document.getElementById('dataExportArea').value = JSON.stringify(appData);
+            document.getElementById('dataModal').classList.remove('hidden'); 
         }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        function closeSettings() { document.getElementById('dataModal').classList.add('hidden'); }
+        function toggleManualMode() { document.getElementById('manualSection').classList.toggle('hidden'); }
+        function downloadDataFile() {
+            const blob = new Blob([JSON.stringify(appData, null, 2)], { type: "text/plain" });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `pc_build_backup.txt`;
+            a.click();
         }
-
+        function importDataFile(input) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if(parsed.builds && confirm("overwrite data?")) { appData = parsed; saveData(); closeSettings(); }
+                } catch(e) { alert("invalid file"); }
+            };
+            reader.readAsText(input.files[0]);
+        }
+        function copyToClipboard() {
+            const area = document.getElementById('dataExportArea');
+            area.select();
+            document.execCommand('copy');
+        }
+        function importManualData() {
+            const val = document.getElementById('manualInput').value;
+            try {
+                const parsed = JSON.parse(val);
+                if(parsed.builds && confirm("overwrite data?")) { appData = parsed; saveData(); closeSettings(); }
+            } catch(e) { alert("invalid format"); }
+        }
     </script>
 </body>
 </html>
