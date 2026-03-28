@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Spiral Chess (8x8x8) - Multiplayer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        // PASTE YOUR FIREBASE CONFIG HERE:
+        const firebaseConfig = {
+            apiKey: "AIzaSyDtP3T8c303kxYbSHYSghwz-NsFnbhgoXg",
+            authDomain: "d-chess-2a344.firebaseapp.com",
+            projectId: "d-chess-2a344",
+            storageBucket: "d-chess-2a344.firebasestorage.app",
+            messagingSenderId: "706683228092",
+            appId: "1:706683228092:web:16780b708090c2d2fd65b9"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        window.fb = { db, auth, doc, setDoc, onSnapshot, updateDoc, getDoc };
+    </script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111827; touch-action: none; font-family: sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        .ui-layer { pointer-events: none; }
+        .ui-interactive { pointer-events: auto; }
+        .modal { backdrop-blur: 8px; }
+    </style>
+</head>
+<body>
+
+    <!-- Lobby / Join UI -->
+    <div id="lobby-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900 bg-opacity-95 p-6">
+        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl max-w-md w-full text-center">
+            <h1 class="text-3xl font-bold text-white mb-2">3D Spiral Chess</h1>
+            <p class="text-slate-400 mb-8">8x8x8 Multiplayer Variant</p>
+            
+            <div id="auth-loading" class="text-blue-400 mb-4 animate-pulse">Connecting to server...</div>
+            
+            <div id="lobby-controls" class="hidden space-y-4">
+                <button id="create-btn" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all">
+                    Create New Room
+                </button>
+                <div class="flex items-center space-x-2">
+                    <input id="room-input" type="text" placeholder="Enter Room ID" class="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="join-btn" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all">
+                        Join
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game UI Overlay -->
+    <div id="game-ui" class="absolute top-0 left-0 w-full h-full ui-layer flex flex-col justify-between p-4 sm:p-8 hidden">
+        <div class="flex justify-between items-start">
+            <div class="bg-gray-900 bg-opacity-80 p-4 rounded-xl border border-gray-700 shadow-2xl backdrop-blur-sm">
+                <h1 class="text-xl font-bold text-white mb-1">Room: <span id="display-room-id" class="text-blue-400">...</span></h1>
+                <p id="player-role" class="text-gray-400 text-xs mb-3 font-mono">Connecting...</p>
+                <div id="turn-indicator" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-white text-gray-900 shadow-[0_0_15px_rgba(255,255,255,0.5)] transition-all">
+                    Waiting for opponent...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Winner Modal -->
+    <div id="winner-modal" class="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black bg-opacity-70 ui-interactive hidden z-50 backdrop-blur-sm">
+        <div class="bg-gray-800 p-8 rounded-2xl text-center border border-gray-600 shadow-2xl">
+            <h2 id="winner-text" class="text-4xl font-extrabold text-white mb-4">White Wins!</h2>
+            <button onclick="location.reload()" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors">Return to Lobby</button>
+        </div>
+    </div>
+
+    <div id="canvas-container" class="ui-interactive"></div>
+
+    <script>
+        // --- 1. GAME & NETWORK STATE ---
+        const gameState = Array(8).fill(null).map(() => Array(8).fill(null).map(() => Array(8).fill(null)));
+        let currentTurn = 'white';
+        let selectedSquare = null; 
+        let validMovesCache = [];
+        let gameActive = false;
+        let myColor = null; // 'white', 'black', or 'spectator'
+        let roomId = null;
+        const keys = {};
+
+        // --- 2. THREE.JS BOILERPLATE ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x111827, 0.008);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(30, 20, 30);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(20, 50, 20);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // --- 3. BOARD CONSTRUCTION ---
+        const squaresMeshes = []; 
+        const pieceMeshes = []; 
+        const ringPath = [{gx:-1,gz:-1},{gx:0,gz:-1},{gx:1,gz:-1},{gx:1,gz:0},{gx:1,gz:1},{gx:0,gz:1},{gx:-1,gz:1},{gx:-1,gz:0}];
+
+        function getSquareWorldPosition(x, y, z) {
+            const boardSpacing = 11, heightFactor = 0.9;
+            const boardX = ringPath[z].gx * boardSpacing;
+            const boardZ = ringPath[z].gz * boardSpacing;
+            const boardY = (z - 3.5) * heightFactor; 
+            return new THREE.Vector3(boardX + (x - 3.5) * 1.1, boardY, boardZ + (y - 3.5) * 1.1);
+        }
+
+        function createBoards() {
+            for (let z = 0; z < 8; z++) {
+                const bPos = getSquareWorldPosition(3.5, 3.5, z);
+                const base = new THREE.Mesh(new THREE.BoxGeometry(9.2, 0.2, 9.2), new THREE.MeshStandardMaterial({ color: 0x3d2314 }));
+                base.position.set(bPos.x, bPos.y - 0.15, bPos.z);
+                scene.add(base);
+                for (let y = 0; y < 8; y++) {
+                    for (let x = 0; x < 8; x++) {
+                        const isWhite = (x + y) % 2 !== 0;
+                        const sq = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 1), new THREE.MeshStandardMaterial({ color: isWhite ? 0xdddddd : 0x4a4a4a }));
+                        const pos = getSquareWorldPosition(x, y, z);
+                        sq.position.copy(pos);
+                        sq.userData = { x, y, z, originalColor: sq.material.color.getHex() };
+                        scene.add(sq);
+                        squaresMeshes.push(sq);
+                    }
+                }
+            }
+        }
+        createBoards();
+
+        // --- 4. PIECES ---
+        function createPieceMesh(type, colorStr) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: colorStr === 'white' ? 0xffffff : 0x1a1a1a });
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.15, 16), mat);
+            group.add(base);
+            let head;
+            if(type==='pawn') head = new THREE.SphereGeometry(0.25, 12, 12);
+            else if(type==='king') head = new THREE.BoxGeometry(0.4, 0.8, 0.4);
+            else head = new THREE.CylinderGeometry(0.2, 0.3, 0.6, 12);
+            const m = new THREE.Mesh(head, mat);
+            m.position.y = 0.4;
+            group.add(m);
+            return group;
+        }
+
+        function clearBoard() {
+            pieceMeshes.forEach(p => scene.remove(p.mesh));
+            pieceMeshes.length = 0;
+            for(let z=0; z<8; z++) for(let y=0; y<8; y++) for(let x=0; x<8; x++) gameState[z][y][x] = null;
+        }
+
+        function addPiece(x, y, z, type, color) {
+            const mesh = createPieceMesh(type, color);
+            const pos = getSquareWorldPosition(x, y, z);
+            mesh.position.set(pos.x, pos.y + 0.05, pos.z);
+            scene.add(mesh);
+            const pObj = { type, color, mesh, x, y, z };
+            gameState[z][y][x] = pObj;
+            pieceMeshes.push(pObj);
+        }
+
+        // --- 5. CHESS LOGIC (Simplified for networking) ---
+        function isPathClear(sx, sy, sz, tx, ty, tz) {
+            const dx = tx-sx, dy = ty-sy, dz = tz-sz;
+            const steps = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
+            const stepX = dx/steps || 0, stepY = dy/steps || 0, stepZ = dz/steps || 0;
+            for(let i=1; i<steps; i++) {
+                if(gameState[Math.round(sz+stepZ*i)][Math.round(sy+stepY*i)][Math.round(sx+stepX*i)]) return false;
+            }
+            return true;
+        }
+
+        function canMove(sx, sy, sz, tx, ty, tz, piece) {
+            const target = gameState[tz][ty][tx];
+            if(target && target.color === piece.color) return false;
+            const adx = Math.abs(tx-sx), ady = Math.abs(ty-sy), adz = Math.abs(tz-sz);
+            const isRookMove = (adx===0 && ady===0) || (adx===0 && adz===0) || (ady===0 && adz===0);
+            const isBishopMove = (adx===ady && adz===0) || (adx===adz && ady===0) || (ady===adz && adx===0) || (adx===ady && ady===adz);
+            
+            if(piece.type === 'pawn') {
+                const dir = piece.color === 'white' ? 1 : -1;
+                if(!target && adx===0 && ((ty===sy+dir && tz===sz) || (tz===sz+dir && ty===sy))) return true;
+                if(target && adx===1 && (ty===sy+dir || tz===sz+dir)) return true;
+                return false;
+            }
+            if(piece.type === 'rook') return isRookMove && isPathClear(sx,sy,sz,tx,ty,tz);
+            if(piece.type === 'bishop') return isBishopMove && isPathClear(sx,sy,sz,tx,ty,tz);
+            if(piece.type === 'queen') return (isRookMove || isBishopMove) && isPathClear(sx,sy,sz,tx,ty,tz);
+            if(piece.type === 'king') return Math.max(adx,ady,adz) === 1;
+            if(piece.type === 'knight') {
+                const s = [adx,ady,adz].sort();
+                return s[0]===0 && s[1]===1 && s[2]===2;
+            }
+            return false;
+        }
+
+        // --- 6. MULTIPLAYER LOGIC ---
+        async function initMultiplayer() {
+            const { auth, db, onAuthStateChanged, signInAnonymously } = window.fb;
+            
+            onAuthStateChanged(auth, (user) => {
+                if(user) {
+                    document.getElementById('auth-loading').classList.add('hidden');
+                    document.getElementById('lobby-controls').classList.remove('hidden');
+                } else {
+                    signInAnonymously(auth);
+                }
+            });
+
+            document.getElementById('create-btn').onclick = async () => {
+                const id = Math.random().toString(36).substring(2, 7).toUpperCase();
+                await setupRoom(id, true);
+            };
+
+            document.getElementById('join-btn').onclick = async () => {
+                const id = document.getElementById('room-input').value.toUpperCase();
+                if(id) await setupRoom(id, false);
+            };
+        }
+
+        async function setupRoom(id, isCreator) {
+            roomId = id;
+            const { db, doc, setDoc, onSnapshot, getDoc, updateDoc } = window.fb;
+            const roomRef = doc(db, "rooms", roomId);
+            const snap = await getDoc(roomRef);
+
+            if (isCreator) {
+                myColor = 'white';
+                await setDoc(roomRef, { 
+                    turn: 'white', 
+                    white: auth.currentUser.uid, 
+                    black: null, 
+                    lastMove: null,
+                    winner: null
+                });
+            } else {
+                if (!snap.exists()) return alert("Room not found");
+                const data = snap.data();
+                if (!data.black && data.white !== auth.currentUser.uid) {
+                    myColor = 'black';
+                    await updateDoc(roomRef, { black: auth.currentUser.uid });
+                } else {
+                    myColor = data.white === auth.currentUser.uid ? 'white' : 'spectator';
+                }
+            }
+
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('game-ui').classList.remove('hidden');
+            document.getElementById('display-room-id').innerText = roomId;
+            document.getElementById('player-role').innerText = `Playing as: ${myColor.toUpperCase()}`;
+            
+            initBoardLayout();
+            gameActive = true;
+
+            // Listen for changes
+            onSnapshot(roomRef, (doc) => {
+                const data = doc.data();
+                if(!data) return;
+                currentTurn = data.turn;
+                
+                if (data.lastMove && (!selectedSquare || (data.lastMove.color !== myColor))) {
+                    remoteMove(data.lastMove);
+                }
+                
+                if (data.winner) endGame(data.winner, false);
+                
+                const ind = document.getElementById('turn-indicator');
+                if(!data.black) {
+                    ind.innerText = "Waiting for Opponent...";
+                } else {
+                    ind.innerText = currentTurn === 'white' ? "White's Turn" : "Black's Turn";
+                    ind.style.background = currentTurn === 'white' ? 'white' : '#1e293b';
+                    ind.style.color = currentTurn === 'white' ? 'black' : 'white';
+                }
+            });
+        }
+
+        function initBoardLayout() {
+            clearBoard();
+            const rank = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
+            for(let x=0; x<8; x++) {
+                addPiece(x, 0, 0, rank[x], 'white');
+                addPiece(x, 1, 0, 'pawn', 'white');
+                addPiece(x, 7, 7, rank[x], 'black');
+                addPiece(x, 6, 7, 'pawn', 'black');
+            }
+        }
+
+        function remoteMove(move) {
+            const { sx, sy, sz, tx, ty, tz } = move;
+            const piece = gameState[sz][sy][sx];
+            if (!piece) return; // Already moved or error
+            
+            const target = gameState[tz][ty][tx];
+            if (target) scene.remove(target.mesh);
+            
+            gameState[sz][sy][sx] = null;
+            gameState[tz][ty][tx] = piece;
+            piece.x = tx; piece.y = ty; piece.z = tz;
+            const pos = getSquareWorldPosition(tx, ty, tz);
+            piece.mesh.position.set(pos.x, pos.y + 0.05, pos.z);
+        }
+
+        async function sendMove(sx, sy, sz, tx, ty, tz) {
+            const { updateDoc, doc, db } = window.fb;
+            const nextTurn = currentTurn === 'white' ? 'black' : 'white';
+            const piece = gameState[sz][sy][sx];
+            const target = gameState[tz][ty][tx];
+            
+            let winner = null;
+            if(target && target.type === 'king') winner = piece.color;
+
+            await updateDoc(doc(db, "rooms", roomId), {
+                turn: nextTurn,
+                winner: winner,
+                lastMove: { sx, sy, sz, tx, ty, tz, color: piece.color }
+            });
+        }
+
+        // --- 7. INTERACTION ---
+        function onPointerDown(event) {
+            if (!gameActive || currentTurn !== myColor) return;
+            const pointer = new THREE.Vector2((event.clientX/window.innerWidth)*2-1, -(event.clientY/window.innerHeight)*2+1);
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(pointer, camera);
+            const intersects = raycaster.intersectObjects(squaresMeshes);
+            if (intersects.length > 0) {
+                const { x, y, z } = intersects[0].object.userData;
+                const clicked = gameState[z][y][x];
+                if (selectedSquare) {
+                    if (validMovesCache.some(m => m.x===x && m.y===y && m.z===z)) {
+                        sendMove(selectedSquare.x, selectedSquare.y, selectedSquare.z, x, y, z);
+                        selectedSquare = null;
+                        clearHighlights();
+                    } else if (clicked && clicked.color === myColor) {
+                        select(x, y, z);
+                    } else {
+                        selectedSquare = null;
+                        clearHighlights();
+                    }
+                } else if (clicked && clicked.color === myColor) {
+                    select(x, y, z);
+                }
+            }
+        }
+
+        function select(x,y,z) {
+            selectedSquare = {x,y,z};
+            clearHighlights();
+            const piece = gameState[z][y][x];
+            validMovesCache = [];
+            for(let b=0;b<8;b++) for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
+                if(canMove(x,y,z,c,r,b,piece)) validMovesCache.push({x:c,y:r,z:b});
+            }
+            const sq = squaresMeshes.find(s=>s.userData.x===x && s.userData.y===y && s.userData.z===z);
+            sq.material.color.set(0xffff00);
+            validMovesCache.forEach(m => {
+                const targetSq = squaresMeshes.find(s=>s.userData.x===m.x && s.userData.y===m.y && s.userData.z===m.z);
+                targetSq.material.color.set(gameState[m.z][m.y][m.x] ? 0xff5555 : 0x55ff55);
+            });
+        }
+
+        function clearHighlights() {
+            squaresMeshes.forEach(s => s.material.color.set(s.userData.originalColor));
+        }
+
+        function endGame(winner, local) {
+            gameActive = false;
+            document.getElementById('winner-modal').classList.remove('hidden');
+            document.getElementById('winner-text').innerText = `${winner.toUpperCase()} WINS!`;
+        }
+
+        window.addEventListener('pointerdown', onPointerDown);
+        window.onload = initMultiplayer;
+
+        // Camera Loop
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+        function animate() {
+            requestAnimationFrame(animate);
+            if(keys['KeyA'] || keys['ArrowLeft']) {
+                camera.position.applyAxisAngle(new THREE.Vector3(0,1,0), -0.03);
+            }
+            if(keys['KeyD'] || keys['ArrowRight']) {
+                camera.position.applyAxisAngle(new THREE.Vector3(0,1,0), 0.03);
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
